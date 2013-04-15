@@ -45,7 +45,7 @@ public final class AndroidHostnameVerifier implements HostnameVerifier {
     try {
       Certificate[] certificates = session.getPeerCertificates();
       return verify(host, (X509Certificate) certificates[0]);
-    } catch (SSLException e) {
+    } catch (Exception e) {
       return false;
     }
   }
@@ -159,17 +159,9 @@ public final class AndroidHostnameVerifier implements HostnameVerifier {
 
     int suffixLength = cn.length() - (asterisk + 1);
     int suffixStart = hostName.length() - suffixLength;
-    if (hostName.indexOf('.', asterisk) < suffixStart) {
-      // TODO: remove workaround for *.clients.google.com http://b/5426333
-      if (!hostName.endsWith(".clients.google.com")) {
-        return false; // wildcard '*' can't match a '.'
-      }
-    }
 
-    if (!hostName.regionMatches(suffixStart, cn, asterisk + 1, suffixLength)) {
-      return false; // suffix after '*' doesn't match
-    }
 
-    return true;
+    return hostName.regionMatches(suffixStart, cn, asterisk + 1, suffixLength);
+
   }
 }

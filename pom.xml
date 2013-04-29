@@ -27,10 +27,10 @@
 
   <properties>
     <aetherVersion>0.9.0.M2</aetherVersion>
-    <testHarnessVersion>0.5.0</testHarnessVersion>
+    <testHarnessVersion>0.5.1</testHarnessVersion>
     <bouncycastle.version>1.47</bouncycastle.version>
     <npn.version>8.1.2.v20120308</npn.version>
-    <okHttpVersion>0.9.0</okHttpVersion>
+    <okHttpVersion>0.9.1</okHttpVersion>
     <mockwebserver.version>20130201</mockwebserver.version>
   </properties>
 

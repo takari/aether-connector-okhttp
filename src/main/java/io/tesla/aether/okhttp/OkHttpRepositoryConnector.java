@@ -25,6 +25,7 @@ package io.tesla.aether.okhttp;
 // http://zoompf.com/2010/03/performance-tip-for-http-downloads
 // http://stackoverflow.com/questions/6237079/resume-http-file-download-in-java
 
+import io.tesla.aether.okhttp.authenticator.AetherAuthenticator;
 import io.tesla.aether.okhttp.verifier.AndroidHostnameVerifier;
 
 import java.io.BufferedOutputStream;
@@ -102,8 +103,8 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
   private final RepositoryLayout layout = new MavenDefaultLayout();
   private final TransferListener listener;
   private final RepositorySystemSession session;
-  private final AuthenticationContext repoAuthContext;
-  private final AuthenticationContext proxyAuthContext;
+  private final AuthenticationContext repoAuthenticationContext;
+  private final AuthenticationContext proxyAuthenticationContext;
   private final FileProcessor fileProcessor;
   private final RemoteRepository repository;
 
@@ -132,8 +133,8 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
     this.fileProcessor = fileProcessor;
     this.session = session;
 
-    repoAuthContext = AuthenticationContext.forRepository(session, repository);
-    proxyAuthContext = AuthenticationContext.forProxy(session, repository);
+    repoAuthenticationContext = AuthenticationContext.forRepository(session, repository);
+    proxyAuthenticationContext = AuthenticationContext.forProxy(session, repository);
 
     this.commonHeaders = new HashMap<String, String>();
     Map<?, ?> headers = ConfigUtils.getMap(session, null, ConfigurationProperties.HTTP_HEADERS + "." + repository.getId(), ConfigurationProperties.HTTP_HEADERS);
@@ -192,6 +193,25 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
     httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(repository.getProxy()));
     httpClient.setHostnameVerifier(new AndroidHostnameVerifier());
+    
+    //
+    // Proxy authorization
+    //
+    if (proxyAuthenticationContext != null) {
+      String username = proxyAuthenticationContext.get(AuthenticationContext.USERNAME);
+      String password = proxyAuthenticationContext.get(AuthenticationContext.PASSWORD);
+      httpClient.setAuthenticator(new AetherAuthenticator(username, password));
+    }
+
+    //
+    // Authorization
+    //
+    if (repoAuthenticationContext != null) {
+      String username = repoAuthenticationContext.get(AuthenticationContext.USERNAME);
+      String password = repoAuthenticationContext.get(AuthenticationContext.PASSWORD);
+      httpClient.setAuthenticator(new AetherAuthenticator(username, password));
+    }
+
   }
 
   private java.net.Proxy getProxy(Proxy proxy) {
@@ -208,31 +228,7 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
   private HttpURLConnection getConnection(String uri) throws IOException {
 
     HttpURLConnection ohc = httpClient.open(new URL(uri));
-
-    //
-    // Proxy authorization
-    //
-    if (proxyAuthContext != null) {
-      String username = proxyAuthContext.get(AuthenticationContext.USERNAME);
-      String password = proxyAuthContext.get(AuthenticationContext.PASSWORD);
-      ohc.setRequestProperty("Proxy-Connection", "Keep-Alive");
-      ohc.setRequestProperty("Proxy-Authorization", auth(username, password));
-    }
-
-    //
-    // Authorization
-    //
-    if (repoAuthContext != null) {
-      String username = repoAuthContext.get(AuthenticationContext.USERNAME);
-      String password = repoAuthContext.get(AuthenticationContext.PASSWORD);
-      ohc.setRequestProperty("Authorization", auth(username, password));
-      //
-      // We need setup the Authenticator for OkHttp
-      //
-      //httpClient.setAuthenticator(new MyPasswordAuthenticator(username, password));
-
-    }
-
+        
     //
     // Add commons headers
     //
@@ -250,44 +246,6 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
     ohc.setReadTimeout(readTimeout);
 
     return ohc;
-  }
-
-  /*
-  class MyPasswordAuthenticator implements Authenticator {
-    
-    private String username;
-    private String password;
-
-    public MyPasswordAuthenticator(String username, String password) {
-      this.username = username;
-      this.password = password;
-    }
-
-    public String getUsername() {
-      return username;
-    }
-
-    public String getPassword() {
-      return password;
-    }
-
-    @Override
-    public PasswordAuthentication auth(HttpURLConnection conn, RequestorType requestorType, java.net.Proxy proxy, String scheme, String realm) throws IOException {
-      // TODO Auto-generated method stub
-      return null;
-    }
-
-  }
-  */
-
-  private String auth(String username, String password) throws UnsupportedEncodingException {
-
-    String credentialEncoding = ConfigUtils.getString(session, ConfigurationProperties.DEFAULT_HTTP_CREDENTIAL_ENCODING, ConfigurationProperties.HTTP_CREDENTIAL_ENCODING + "." + repository.getId(),
-        ConfigurationProperties.HTTP_CREDENTIAL_ENCODING);
-
-    String auth = new String("Basic " + Base64.encode(new String(username + ":" + password).getBytes(credentialEncoding)));
-
-    return auth;
   }
 
   /**
@@ -736,7 +694,12 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
         ohc.setUseCaches(false);
         ohc.setRequestProperty("Content-Type", "application/octet-stream");
         ohc.setRequestMethod("PUT");
-        ohc.setFixedLengthStreamingMode((int) file.length());
+        //
+        // This is in chunked mode by default and setting this parameter makes the underlying outputstream not a 
+        // RetryableOutputStream and fails when authentication is required. Need to make sure this is still efficient
+        // where large files don't blow memory.
+        //
+        //ohc.setFixedLengthStreamingMode((int) file.length());
         ohc.setDoOutput(true);
 
         is = new FileInputStream(file);
@@ -874,8 +837,8 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
 
   public void close() {
     closed.set(true);
-    AuthenticationContext.close(repoAuthContext);
-    AuthenticationContext.close(proxyAuthContext);
+    AuthenticationContext.close(repoAuthenticationContext);
+    AuthenticationContext.close(proxyAuthenticationContext);
   }
 
   private <T> Collection<T> safe(Collection<T> items) {

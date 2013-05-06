@@ -87,6 +87,7 @@ import org.eclipse.aether.util.repository.layout.RepositoryLayout;
 
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Closeables;
+import com.squareup.okhttp.OkAuthenticator;
 //import com.squareup.okhttp.Authenticator;
 import com.squareup.okhttp.OkHttpClient;
 
@@ -193,6 +194,8 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
     httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(repository.getProxy()));
     httpClient.setHostnameVerifier(new AndroidHostnameVerifier());
+    AetherAuthenticator authenticator = new AetherAuthenticator();
+    httpClient.setAuthenticator(authenticator);
     
     //
     // Proxy authorization
@@ -200,7 +203,8 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
     if (proxyAuthenticationContext != null) {
       String username = proxyAuthenticationContext.get(AuthenticationContext.USERNAME);
       String password = proxyAuthenticationContext.get(AuthenticationContext.PASSWORD);
-      httpClient.setAuthenticator(new AetherAuthenticator(username, password));
+      authenticator.setProxyUsername(username);
+      authenticator.setProxyPassword(password);
     }
 
     //
@@ -209,7 +213,8 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
     if (repoAuthenticationContext != null) {
       String username = repoAuthenticationContext.get(AuthenticationContext.USERNAME);
       String password = repoAuthenticationContext.get(AuthenticationContext.PASSWORD);
-      httpClient.setAuthenticator(new AetherAuthenticator(username, password));
+      authenticator.setUsername(username);
+      authenticator.setPassword(password);
     }
 
   }

@@ -30,7 +30,7 @@
     <testHarnessVersion>0.5.1</testHarnessVersion>
     <bouncycastle.version>1.47</bouncycastle.version>
     <npn.version>8.1.2.v20120308</npn.version>
-    <okHttpVersion>0.9.1</okHttpVersion>
+    <okHttpVersion>1.0.1</okHttpVersion>
     <mockwebserver.version>20130201</mockwebserver.version>
   </properties>
 
@@ -43,7 +43,7 @@
   <dependencies>
     <!-- OkHttp -->
     <dependency>
-      <groupId>io.tesla.okhttp</groupId>
+      <groupId>com.squareup.okhttp</groupId>
       <artifactId>okhttp</artifactId>
       <version>${okHttpVersion}</version>
     </dependency>

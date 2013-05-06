@@ -11,10 +11,39 @@ public class AetherAuthenticator implements OkAuthenticator {
 
   private String username;
   private String password;
+  private String proxyUsername;
+  private String proxyPassword;
   
-  public AetherAuthenticator(String username, String password) {
+  public String getUsername() {
+    return username;
+  }
+
+  public void setUsername(String username) {
     this.username = username;
+  }
+
+  public String getPassword() {
+    return password;
+  }
+
+  public void setPassword(String password) {
     this.password = password;
+  }
+
+  public String getProxyUsername() {
+    return proxyUsername;
+  }
+
+  public void setProxyUsername(String proxyUsername) {
+    this.proxyUsername = proxyUsername;
+  }
+
+  public String getProxyPassword() {
+    return proxyPassword;
+  }
+
+  public void setProxyPassword(String proxyPassword) {
+    this.proxyPassword = proxyPassword;
   }
 
   @Override
@@ -24,7 +53,7 @@ public class AetherAuthenticator implements OkAuthenticator {
 
   @Override
   public Credential authenticateProxy(Proxy proxy, URL url, List<Challenge> challenges) throws IOException {
-    return Credential.basic(username, password);
+    return Credential.basic(proxyUsername, proxyPassword);
   }
 
 }

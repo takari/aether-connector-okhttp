@@ -193,6 +193,7 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
 
     httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(repository.getProxy()));
+    //TODO: We can now use the hostname verifier that is provided by OkHttp itself
     httpClient.setHostnameVerifier(new AndroidHostnameVerifier());
     AetherAuthenticator authenticator = new AetherAuthenticator();
     httpClient.setAuthenticator(authenticator);
@@ -449,7 +450,7 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
         // like checksum validation and signature validation. We will only move the temporary file over
         // to the realFile if all the validations are successful.
         //
-        validateChecksums(temporaryFileInLocalRepository.file, uri, transferResource);
+        validateChecksums(temporaryFileInLocalRepository.file, fileInLocalRepository, uri, transferResource);
 
         //
         // Only if the checksum handling succeeds will the temporary file be moved to the real file. The contents of the file are not
@@ -504,7 +505,7 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
     //
     // Checksum handling
     //
-    private void validateChecksums(File temporaryFileInLocalRepository, String uri, TransferResource transferResource) throws Exception {
+    private void validateChecksums(File temporaryFileInLocalRepository, File fileInLocalRepository, String uri, TransferResource transferResource) throws Exception {
 
       boolean failOnInvalidOrMissingCheckums = RepositoryPolicy.CHECKSUM_POLICY_FAIL.equals(checksumPolicy);
 
@@ -513,13 +514,13 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
         //
         // SHA1
         //
-        if (!verifyChecksum(temporaryFileInLocalRepository, uri, (String) checksums.get("SHA-1"), ".sha1")) {
+        if (!verifyChecksum(temporaryFileInLocalRepository, fileInLocalRepository, uri, (String) checksums.get("SHA-1"), ".sha1")) {
           throw new ChecksumFailureException("Checksum validation failed" + ", no checksums available from the repository");
         }
         //
         // MD5
         //
-        if (!verifyChecksum(temporaryFileInLocalRepository, uri, (String) checksums.get("MD5"), ".md5")) {
+        if (!verifyChecksum(temporaryFileInLocalRepository, fileInLocalRepository, uri, (String) checksums.get("MD5"), ".md5")) {
           throw new ChecksumFailureException("Checksum validation failed" + ", no checksums available from the repository");
         }
       } catch (Exception e) {
@@ -535,10 +536,21 @@ class OkHttpRepositoryConnector implements RepositoryConnector {
       }
     }
 
-    private boolean verifyChecksum(File file, String uri, String actual, String ext) throws ChecksumFailureException {
+    /**
+     * 
+     * @param temporaryFileInLocalRepository The in-progress name of the resource being downloaded e.g. ${localRepo}/io/tesla/maven/maven-core/3.1.2/aether-90e2b299-3604-4504-b13b-dc147f001c1e-maven-core-3.1.2.jar-in-progress
+     * @param fileInLocalRepository The name of the completed name of the resource being downloaded e.g. ${localRepo}/io/tesla/maven/maven-core/3.1.2/maven-core-3.1.2.jar
+     * @param uri The URI of the resource in the remote repository e.g. http://repo1.maven.org/maven2/io/tesla/maven/maven-core/3.1.2/maven-core-3.1.2.jar
+     * @param actual The calculated checksum of the file e.g. 724036fb069c47ccc1e27b370f99f6f10069e34a
+     * @param ext The type of the checksum like .sha1 or .md5
+     * @return Whether the checksum file remotely matches the locally calculated checksum
+     * @throws ChecksumFailureException
+     */
+    private boolean verifyChecksum(File temporaryFileInLocalRepository, File fileInLocalRepository, String uri, String actual, String ext) throws ChecksumFailureException {
 
       String checksumUri = uri + ext;
-      File checksumFileInLocalRepository = new File(file.getParentFile(), file.getName() + ext);
+      // ${localRepo}/io/tesla/maven/maven-core/3.1.2/maven-core-3.1.2.jar + ".sha1"
+      File checksumFileInLocalRepository = new File(temporaryFileInLocalRepository.getParentFile(), fileInLocalRepository.getName() + ext);
       TransferResource transferResource = new TransferResource(repository.getUrl(), checksumUri, checksumFileInLocalRepository, download.getTrace());
 
       try {

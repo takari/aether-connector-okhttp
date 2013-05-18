@@ -21,7 +21,7 @@
   </parent>
   <groupId>io.tesla.aether</groupId>
   <artifactId>aether-connector-okhttp</artifactId>
-  <version>0.0.5-SNAPSHOT</version>
+  <version>0.0.5</version>
   <name>OkHttp Aether Connector</name>
   <description>A repository connector implementation based on Square's OkHttp.</description>
 

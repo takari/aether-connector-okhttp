@@ -39,7 +39,7 @@ public class OkHttpAetherClient implements AetherClient {
     //
     // If the User-Agent has been overriden in the headers then we will use that
     //
-    if (!headers.containsKey("User-Agent")) {
+    if (headers != null && !headers.containsKey("User-Agent")) {
       headers.put("User-Agent", config.getUserAgent());
     }
     
@@ -164,8 +164,10 @@ public class OkHttpAetherClient implements AetherClient {
     HttpURLConnection ohc = httpClient.open(new URL(uri));
 
     // Headers
-    for (String headerName : headers.keySet()) {
-      ohc.addRequestProperty(headerName, headers.get(headerName));
+    if (headers != null) {
+      for (String headerName : headers.keySet()) {
+        ohc.addRequestProperty(headerName, headers.get(headerName));
+      }
     }
 
     if (requestHeaders != null) {

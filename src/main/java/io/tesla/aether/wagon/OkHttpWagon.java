@@ -10,6 +10,7 @@ import io.tesla.aether.okhttp.OkHttpAetherClient;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 import javax.inject.Named;
@@ -25,12 +26,15 @@ import org.apache.maven.wagon.authentication.AuthenticationException;
 import org.apache.maven.wagon.authorization.AuthorizationException;
 import org.apache.maven.wagon.resource.Resource;
 import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Configuration;
 import org.eclipse.aether.ConfigurationProperties;
 
 @Named("http")
-@Component(role = Wagon.class, hint = "http")
+@Component(role = Wagon.class, hint = "http", instantiationStrategy = "per-lookup")
 public class OkHttpWagon extends StreamWagon {
 
+  private Properties httpHeaders;
+  
   private AetherClient client;
 
   @Override
@@ -79,9 +83,11 @@ public class OkHttpWagon extends StreamWagon {
 
     AetherClientConfig config = new AetherClientConfig();
     config.setUserAgent("Maven-Wagon/1.0");
-
+    
     // headers
-    config.setHeaders(new HashMap<String, String>());
+    if (httpHeaders != null) {
+      config.setHeaders((Map)httpHeaders);
+    }
 
     if (getProxyInfo() != null) {
       AetherClientProxy proxy = new AetherClientProxy();
@@ -161,6 +167,8 @@ public class OkHttpWagon extends StreamWagon {
   }
 
   public void setHttpHeaders(Properties httpHeaders) {
+    System.out.println(">>>>> " + httpHeaders);
+    this.httpHeaders = httpHeaders;
   }
 
 }

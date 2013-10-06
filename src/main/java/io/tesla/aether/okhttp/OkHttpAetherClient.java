@@ -35,13 +35,18 @@ public class OkHttpAetherClient implements AetherClient {
     this.config = config;
 
     headers = config.getHeaders();
-    headers.put("User-Agent", config.getUserAgent());
-    headers.put("Accept", "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2");
-
-    if (!useCache) {
-      headers.put("Pragma", "no-cache");
+    
+    //
+    // If the User-Agent has been overriden in the headers then we will use that
+    //
+    if (!headers.containsKey("User-Agent")) {
+      headers.put("User-Agent", config.getUserAgent());
     }
-
+    
+    //if (!useCache) {
+    //  headers.put("Pragma", "no-cache");
+    //}
+    
     httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(config.getProxy()));
     httpClient.setHostnameVerifier(new OkHostnameVerifier());

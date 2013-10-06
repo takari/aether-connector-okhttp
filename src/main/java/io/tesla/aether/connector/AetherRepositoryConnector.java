@@ -41,10 +41,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.codehaus.plexus.configuration.PlexusConfiguration;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.repository.AuthenticationContext;
@@ -93,7 +95,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   private final Map<String, String> checksumAlgos;
   private final AtomicBoolean closed = new AtomicBoolean(false);
-  private boolean useCache = false;
+  private boolean useCache = true;
   private Map<String, String> commonHeaders;
 
   private AetherClient aetherClient;
@@ -121,27 +123,41 @@ class AetherRepositoryConnector implements RepositoryConnector {
     repoAuthenticationContext = AuthenticationContext.forRepository(session, repository);
     proxyAuthenticationContext = AuthenticationContext.forProxy(session, repository);
 
-    this.commonHeaders = new HashMap<String, String>();
-    Map<?, ?> headers = ConfigUtils.getMap(session, null, ConfigurationProperties.HTTP_HEADERS + "." + repository.getId(), ConfigurationProperties.HTTP_HEADERS);
-
+    commonHeaders = new HashMap<String, String>();
+    Map<String, String> headers = (Map<String, String>) ConfigUtils.getMap(session, null, ConfigurationProperties.HTTP_HEADERS + "." + repository.getId(), ConfigurationProperties.HTTP_HEADERS);
     if (headers != null) {
-      for (Map.Entry<?, ?> entry : headers.entrySet()) {
-        if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
-          this.commonHeaders.put(entry.getKey().toString(), entry.getValue().toString());
+      this.commonHeaders.putAll(headers);
+    }
+
+    PlexusConfiguration wagonConfig = (PlexusConfiguration) ConfigUtils.getObject(session, null, "aether.connector.wagon.config" + "." + repository.getId());
+    //
+    //  <configuration>
+    //    <httpHeaders>
+    //      <property>
+    //        <name>User-Agent</name>                                                                                                               
+    //        <value>Maven Fu</value>                                                                                                                                                            
+    //      </property>                                                                                                                                                                        
+    //      <property>
+    //        <name>Custom-Header</name>                                                                                                                                               
+    //        <value>My wonderful header</value>                                                                                                                                                 
+    //      </property>                                                                                                                                                                        
+    //    </httpHeaders>                                                                                                                                                                     
+    //  </configuration>
+    //
+    if (wagonConfig != null) {
+      PlexusConfiguration httpHeaders = wagonConfig.getChild("httpHeaders");
+      if (httpHeaders != null) {
+        PlexusConfiguration[] properties = httpHeaders.getChildren("property");
+        if (properties != null) {
+          for (PlexusConfiguration property : properties) {
+            commonHeaders.put(property.getChild("name").getValue(), property.getChild("value").getValue());
+          }
         }
       }
     }
 
-    // User-Agent
-    commonHeaders.put("User-Agent", ConfigUtils.getString(session, ConfigurationProperties.DEFAULT_USER_AGENT, ConfigurationProperties.USER_AGENT));
-    commonHeaders.put("Accept", "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2");
-
-    config.setUserAgent(ConfigUtils.getString(session, ConfigurationProperties.DEFAULT_USER_AGENT, ConfigurationProperties.USER_AGENT));
     config.setHeaders(commonHeaders);
-
-    if (!useCache) {
-      //commonHeaders.put("Pragma", "no-cache");
-    }
+    config.setUserAgent(ConfigUtils.getString(session, ConfigurationProperties.DEFAULT_USER_AGENT, ConfigurationProperties.USER_AGENT));
 
     checksumAlgos = new LinkedHashMap<String, String>();
     checksumAlgos.put("SHA-1", ".sha1");
@@ -489,7 +505,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
     }
 
     private FileTransfer resumableGet(String uri, File fileInLocalRepository, TransferResource transferResource, RequestType requestType, TransferListener listener) throws Exception {
-            
+
       long bytesTransferred = 0;
 
       boolean downloadSuccessful = false;
@@ -516,16 +532,16 @@ class AetherRepositoryConnector implements RepositoryConnector {
         Response response;
 
         if (resumeDownloadInProgress) {
-          Map<String,String> requestHeaders = new HashMap<String,String>();
+          Map<String, String> requestHeaders = new HashMap<String, String>();
           requestHeaders.put("Range", "bytes=" + temporaryFileInLocalRepository.length() + "-");
           requestHeaders.put("Accept-Encoding", "identity");
-          response = aetherClient.get(uri, requestHeaders);          
+          response = aetherClient.get(uri, requestHeaders);
         } else {
-          response = aetherClient.get(uri);          
+          response = aetherClient.get(uri);
         }
 
         handleResponseCode(uri, response.getStatusCode(), response.getStatusMessage());
-        
+
         if (listener != null) {
           String contentLength = response.getHeader("Content-Length");
           if (contentLength != null) {
@@ -534,13 +550,13 @@ class AetherRepositoryConnector implements RepositoryConnector {
             listener.transferStarted(newEvent(transferResource, null, requestType, EventType.STARTED).setTransferredBytes(bytesTransferred).build());
           }
         }
-        
+
         Closer closer = Closer.create();
         final byte[] buffer = new byte[1024 * 1024];
         int n = 0;
         try {
           InputStream is = closer.register(response.getInputStream());
-          OutputStream os = closer.register(new BufferedOutputStream(new FileOutputStream(temporaryFileInLocalRepository, resumeDownloadInProgress)));                    
+          OutputStream os = closer.register(new BufferedOutputStream(new FileOutputStream(temporaryFileInLocalRepository, resumeDownloadInProgress)));
           while (-1 != (n = is.read(buffer))) {
             os.write(buffer, 0, n);
             if (listener != null) {
@@ -707,7 +723,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
       int statusCode = response.getStatusCode();
       if (statusCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
         throw new TransferException(String.format("Checksum failed for %s with status code %s", uri + ext, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
-      }      
+      }
     } catch (Exception e) {
       String msg = "Failed to upload " + algo + " checksum for " + file + ": " + e.getMessage();
       if (logger.isDebugEnabled()) {

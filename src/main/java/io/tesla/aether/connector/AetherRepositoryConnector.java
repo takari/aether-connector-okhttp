@@ -41,7 +41,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,7 +60,7 @@ import org.eclipse.aether.spi.connector.MetadataUpload;
 import org.eclipse.aether.spi.connector.RepositoryConnector;
 import org.eclipse.aether.spi.connector.Transfer;
 import org.eclipse.aether.spi.io.FileProcessor;
-import org.eclipse.aether.spi.log.Logger;
+//import org.eclipse.aether.spi.log.Logger;
 import org.eclipse.aether.transfer.ArtifactNotFoundException;
 import org.eclipse.aether.transfer.ArtifactTransferException;
 import org.eclipse.aether.transfer.ChecksumFailureException;
@@ -77,14 +76,16 @@ import org.eclipse.aether.util.ChecksumUtils;
 import org.eclipse.aether.util.ConfigUtils;
 import org.eclipse.aether.util.repository.layout.MavenDefaultLayout;
 import org.eclipse.aether.util.repository.layout.RepositoryLayout;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.io.ByteStreams;
-import com.google.common.io.Closeables;
 import com.google.common.io.Closer;
 
 class AetherRepositoryConnector implements RepositoryConnector {
 
-  private final Logger logger;
+  private final Logger logger = LoggerFactory.getLogger(AetherRepositoryConnector.class);
+  
   private final RepositoryLayout layout = new MavenDefaultLayout();
   private final TransferListener listener;
   private final RepositorySystemSession session;
@@ -100,7 +101,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   private AetherClient aetherClient;
 
-  public AetherRepositoryConnector(RemoteRepository repository, RepositorySystemSession session, FileProcessor fileProcessor, Logger logger) throws NoRepositoryConnectorException {
+  public AetherRepositoryConnector(RemoteRepository repository, RepositorySystemSession session, FileProcessor fileProcessor) throws NoRepositoryConnectorException {
     //
     // Right now this only support a Maven layout which is what we mean by type
     //
@@ -112,7 +113,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
       throw new NoRepositoryConnectorException(repository);
     }
 
-    this.logger = logger;
+    //this.logger = logger;
     this.repository = repository;
     this.listener = session.getTransferListener();
     this.fileProcessor = fileProcessor;
@@ -512,9 +513,12 @@ class AetherRepositoryConnector implements RepositoryConnector {
       boolean resumeDownloadInProgress = false;
       File temporaryFileInLocalRepository = null;
 
+      //
+      // Need to distinguish between client side failure and server side failure
+      //      
       for (int retries = 0; retries < 10; retries++) {
-
-        for (File inProgress : fileInLocalRepository.getParentFile().listFiles()) {
+        File[] files = fileInLocalRepository.getParentFile().listFiles();
+        for (File inProgress : files) {
           //
           // ${HOME}/.m2/repository/io/tesla/tesla/4/aether-737f90e4cfa047e3-pom.xml-in-progress
           //
@@ -529,6 +533,8 @@ class AetherRepositoryConnector implements RepositoryConnector {
           temporaryFileInLocalRepository = getTmpFile(fileInLocalRepository.getPath());
         }
 
+        //JVZ: this all needs to be moved up to the client
+
         Response response;
 
         if (resumeDownloadInProgress) {
@@ -541,6 +547,25 @@ class AetherRepositoryConnector implements RepositoryConnector {
         }
 
         handleResponseCode(uri, response.getStatusCode(), response.getStatusMessage());
+        //
+        // We need to check to see if the server supports the Range header. We should see a response
+        // that looks like the following:
+        //
+        // 206 Partial Content
+        // Content-Type: video/mp4
+        // Content-Length: 64656927
+        // Accept-Ranges: bytes
+        // Content-Range: bytes 100-64656926/64656927
+        //
+        //
+        // If we are going to resume a download, the server needs to respond with a 206 and say it accepts ranges
+        //                
+        if (resumeDownloadInProgress && response.getHeader("Accept-Ranges") == null && response.getStatusCode() == HttpURLConnection.HTTP_OK) {
+          //
+          // The server does not support ranges so delete the temporary file and start over.
+          //
+          temporaryFileInLocalRepository.delete();
+        }
 
         if (listener != null) {
           String contentLength = response.getHeader("Content-Length");

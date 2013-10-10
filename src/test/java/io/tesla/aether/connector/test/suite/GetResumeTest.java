@@ -48,26 +48,12 @@ public class GetResumeTest extends InjectedTestCase {
   private Connector connector;
   private FlakyHandler flakyHandler;
   private int port;
-
+  private boolean supportRanges;
 
   // NOTE: Length of pattern should not be divisable by 2 to catch data continuation errors during resume
   static final int[] CONTENT_PATTERN = {
       'a', 'B', ' '
   };
-
-  protected void setUp() throws Exception {
-    
-    super.setUp();
-    
-    artifact = new DefaultArtifact("gid", "aid", "classifier", "extension", "version");
-    
-    server = new Server();    
-    connector = new SelectChannelConnector();
-    server.addConnector(connector);
-    flakyHandler = new FlakyHandler(4);
-    server.setHandler(flakyHandler);
-    server.start();    
-  }
 
   public void tearDown() throws Exception {
     
@@ -93,7 +79,16 @@ public class GetResumeTest extends InjectedTestCase {
     }
   }
 
-  public void testResumingDownloadsWhereTheServerDropsTheConnection() throws Exception {
+  public void testResumingDownloadsWhereTheServerDropsTheConnectionAndSupportsRanges() throws Exception {
+    
+    artifact = new DefaultArtifact("gid", "aid", "classifier", "extension", "version");
+
+    server = new Server();    
+    connector = new SelectChannelConnector();
+    server.addConnector(connector);
+    flakyHandler = new FlakyHandler(4, true); // support ranges
+    server.setHandler(flakyHandler);
+    server.start();        
     
     File file = TestFileUtils.createTempFile("");
     file.delete();
@@ -114,6 +109,36 @@ public class GetResumeTest extends InjectedTestCase {
     assertContentPattern(file);
   }
  
+  public void testResumingDownloadsWhereTheServerDropsTheConnectionAndDoesNotSupportsRanges() throws Exception {
+    
+    artifact = new DefaultArtifact("gid", "aid", "classifier", "extension", "version");
+
+    server = new Server();    
+    connector = new SelectChannelConnector();
+    server.addConnector(connector);
+    FlakyServerHandlerWithNoRangeSupport flakyHandler = new FlakyServerHandlerWithNoRangeSupport(2); // do not support ranges
+    server.setHandler(flakyHandler);
+    server.start();        
+    
+    File file = TestFileUtils.createTempFile("");
+    file.delete();
+
+    ArtifactDownload download = new ArtifactDownload(artifact, "", file, RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
+
+    RemoteRepository repo = new RemoteRepository.Builder("test", "default", url()).build();
+    RepositoryConnector connector = factory.newInstance(session, repo);
+    try {
+      connector.get(Arrays.asList(download), null);
+    } finally {
+      connector.close();
+    }
+
+    assertNull(String.valueOf(download.getException()), download.getException());
+    assertTrue("Missing " + file.getAbsolutePath(), file.isFile());
+    assertEquals("Bad size of " + file.getAbsolutePath(), flakyHandler.totalSize, file.length());
+    assertContentPattern(file);
+  }  
+  
   @Override
   public void configure(Binder binder) {
     binder.bind(ILoggerFactory.class).to(SimpleLoggerFactory.class);

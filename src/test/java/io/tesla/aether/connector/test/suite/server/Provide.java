@@ -66,7 +66,17 @@ public class Provide
               lowerBound = Integer.parseInt(m.group(1));
             }
             
+            //
+            // We need to response correctly. Something like the following:
+            //
+            // 206 Partial Content
+            // Content-Type: video/mp4
+            // Content-Length: 64656927
+            // Accept-Ranges: bytes
+            // Content-Range: bytes 100-64656926/64656927
+            //                        
             response.setStatus((lowerBound > 0) ? HttpURLConnection.HTTP_PARTIAL : HttpURLConnection.HTTP_OK);
+            response.setHeader("Accept-Ranges", "bytes");
             response.setContentType( "application/octet-stream" );
             int length = ba.length - lowerBound;            
             // 

@@ -17,24 +17,21 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
 class FlakyHandler extends AbstractHandler {
 
   private static final Pattern RANGE = Pattern.compile("bytes=([0-9]+)-");
-
   private final int requiredRequests;
-
   private final Map<String, Integer> madeRequests;
-
   final int totalSize;
-
   private final int chunkSize;
+  private boolean supportRanges;
 
-  public FlakyHandler(int requiredRequests) {
+  public FlakyHandler(int requiredRequests, boolean supportRanges) {
     this.requiredRequests = requiredRequests;
+    this.supportRanges = supportRanges;
     madeRequests = new ConcurrentHashMap<String, Integer>();
-
     totalSize = 1024 * 128;
     chunkSize = (requiredRequests > 1) ? totalSize / (requiredRequests - 1) - 1 : totalSize;
   }
 
-  public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
+  public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {    
     Integer attempts = madeRequests.get(target);
     attempts = (attempts == null) ? Integer.valueOf(1) : Integer.valueOf(attempts.intValue() + 1);
     madeRequests.put(target, attempts);
@@ -47,27 +44,29 @@ class FlakyHandler extends AbstractHandler {
 
     int lb = 0, ub = totalSize - 1;
 
-    String range = request.getHeader("Range");
-    if (range != null && range.matches(RANGE.pattern())) {
-      Matcher m = RANGE.matcher(range);
-      m.matches();
-      lb = Integer.parseInt(m.group(1));
+    if (supportRanges) {
+      String range = request.getHeader("Range");
+      if (range != null && range.matches(RANGE.pattern())) {
+        Matcher m = RANGE.matcher(range);
+        m.matches();
+        lb = Integer.parseInt(m.group(1));
+      }
+      if (lb > 0) {
+        response.setHeader("Accept-Ranges", "bytes");
+        response.setHeader("Content-Range", "bytes " + lb + "-" + ub + "/" + totalSize);
+      }      
     }
 
     response.setStatus((lb > 0) ? HttpURLConnection.HTTP_PARTIAL : HttpURLConnection.HTTP_OK);
-    response.setContentLength(totalSize - lb);
     response.setContentType("Content-type: text/plain; charset=UTF-8");
-    if (lb > 0) {
-      response.setHeader("Content-Range", "bytes " + lb + "-" + ub + "/" + totalSize);
-    }
-    response.flushBuffer();
-
+    response.setContentLength(totalSize - lb);
+    response.flushBuffer();      
+    
     OutputStream out = response.getOutputStream();
 
     for (int i = lb, j = 0; i <= ub; i++, j++) {
-      if (j >= chunkSize) {
+      if (j >= chunkSize && supportRanges) {
         out.flush();
-
         throw new IOException("oups, we're dead");
       }
 

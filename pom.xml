@@ -27,7 +27,7 @@
     <testHarnessVersion>0.5.1</testHarnessVersion>
     <bouncycastle.version>1.47</bouncycastle.version>
     <npn.version>8.1.2.v20120308</npn.version>
-    <okHttpVersion>1.0.2</okHttpVersion>
+    <okHttpVersion>1.2.1</okHttpVersion>
     <mockwebserver.version>20130201</mockwebserver.version>
     <wagonVersion>2.4</wagonVersion>
     <slf4jVersion>1.7.4</slf4jVersion>

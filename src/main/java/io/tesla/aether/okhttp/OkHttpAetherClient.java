@@ -56,7 +56,7 @@ public class OkHttpAetherClient implements AetherClient {
     
     httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(config.getProxy()));
-    httpClient.setHostnameVerifier(new OkHostnameVerifier());
+    httpClient.setHostnameVerifier(OkHostnameVerifier.INSTANCE);
 
     if (config.getAuthentication() != null) {
       AetherAuthenticator authenticator = new AetherAuthenticator();

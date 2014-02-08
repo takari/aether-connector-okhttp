@@ -27,6 +27,7 @@
     <testHarnessVersion>0.5.1</testHarnessVersion>
     <bouncycastle.version>1.47</bouncycastle.version>
     <npn.version>8.1.2.v20120308</npn.version>
+    <jettyUtilVersion>9.1.1.v20140108</jettyUtilVersion>
     <okHttpVersion>1.3.0</okHttpVersion>
     <mockwebserver.version>20130201</mockwebserver.version>
     <wagonVersion>2.4</wagonVersion>
@@ -94,6 +95,11 @@
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
       <version>14.0.1</version>
+    </dependency>
+    <dependency>
+        <groupId>org.eclipse.jetty</groupId>
+        <artifactId>jetty-util</artifactId>
+        <version>${jettyUtilVersion}</version>
     </dependency>
     <!-- JSR330 -->
     <dependency>

@@ -11,7 +11,6 @@ import io.tesla.aether.client.AetherClient;
 import io.tesla.aether.client.AetherClientConfig;
 import io.tesla.aether.client.AetherClientProxy;
 import io.tesla.aether.client.Response;
-import io.tesla.aether.okhttp.ssl.SslContextFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 import javax.net.ssl.SSLSocketFactory;
+
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 
 import com.squareup.okhttp.OkAuthenticator;
 import com.squareup.okhttp.OkHttpClient;
@@ -147,7 +148,7 @@ public class OkHttpAetherClient implements AetherClient {
         scf.setKeyStorePassword(keyStorePassword);
         scf.setKeyStoreType(keyStoreType);
         if (trustStorePath != null && trustStorePassword != null) {
-          scf.setTrustStore(trustStorePath);
+          scf.setTrustStorePath(trustStorePath);
           scf.setTrustStorePassword(trustStorePassword);
           scf.setTrustStoreType(trustStoreType);
         }

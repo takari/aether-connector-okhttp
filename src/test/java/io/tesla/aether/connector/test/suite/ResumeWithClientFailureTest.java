@@ -70,10 +70,9 @@ public class ResumeWithClientFailureTest extends AetherTestCase {
     a = artifact("bla");
     down = new ArtifactDownload(a, null, f, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
     downs = Arrays.asList(down);
-    connector = null;
-    RecordingTransferListener listener = new RecordingTransferListener(session.getTransferListener());
-    session.setTransferListener(listener);
-    c = connector();
+    RecordingTransferListener listener = new RecordingTransferListener(session().getTransferListener());
+    session().setTransferListener(listener);
+    c = connector(true);
     c.get(downs, null);
 
     //

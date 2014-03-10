@@ -73,11 +73,11 @@ public class AetherConnectorTest extends AetherTestCase {
    *      RemoteRepository)
    */
   public void testSuccessfulEvents() throws NoRepositoryConnectorException, IOException {
-    testSuccessfulTransferEvents(factory, session, repository);
+    testSuccessfulTransferEvents(repositoryConnectorFactory, session(), remoteRepository());
   }
 
   public void testFailedEvents() throws NoRepositoryConnectorException, IOException {
-    testFailedTransferEvents(factory, session, repository);
+    testFailedTransferEvents(repositoryConnectorFactory, session(), remoteRepository());
   }
 
   public void testFileHandleLeakage() throws IOException, NoRepositoryConnectorException {
@@ -85,7 +85,7 @@ public class AetherConnectorTest extends AetherTestCase {
     Artifact artifact = new DefaultArtifact("testGroup", "testArtifact", "", "jar", "1-test");
     Metadata metadata = new DefaultMetadata("testGroup", "testArtifact", "1-test", "maven-metadata.xml", Metadata.Nature.RELEASE_OR_SNAPSHOT);
 
-    RepositoryConnector connector = factory.newInstance(session, repository);
+    RepositoryConnector connector = connector();
 
     File tmpFile = TestFileUtils.createTempFile("testFileHandleLeakage");
     ArtifactUpload artUp = new ArtifactUpload(artifact, tmpFile);
@@ -115,7 +115,7 @@ public class AetherConnectorTest extends AetherTestCase {
   @Test
   public void testBlocking() throws NoRepositoryConnectorException, IOException {
 
-    RepositoryConnector connector = factory.newInstance(session, repository);
+    RepositoryConnector connector = connector();
 
     int count = 10;
 
@@ -148,7 +148,7 @@ public class AetherConnectorTest extends AetherTestCase {
 
   public void testMkdirConcurrencyBug() throws IOException, NoRepositoryConnectorException {
     
-    RepositoryConnector connector = factory.newInstance(session, repository);
+    RepositoryConnector connector = connector();
     File artifactFile = TestFileUtils.createTempFile("mkdirsBug0");
     File metadataFile = TestFileUtils.createTempFile("mkdirsBug1");
 
@@ -171,7 +171,7 @@ public class AetherConnectorTest extends AetherTestCase {
     connector.put(Arrays.asList(artUps), null);
     connector.put(null, Arrays.asList(metaUps));
 
-    File localRepo = session.getLocalRepository().getBasedir();
+    File localRepo = session().getLocalRepository().getBasedir();
 
     StringBuilder localPath = new StringBuilder(localRepo.getAbsolutePath());
 
@@ -234,7 +234,7 @@ public class AetherConnectorTest extends AetherTestCase {
     downMFile.deleteOnExit();
     MetadataDownload downM = new MetadataDownload(metadata, "", downMFile, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
 
-    RepositoryConnector connector = factory.newInstance(session, repository);
+    RepositoryConnector connector = connector();
     connector.put(Arrays.asList(upA), Arrays.asList(upM));
     connector.get(Arrays.asList(downA), Arrays.asList(downM));
 
@@ -275,9 +275,9 @@ public class AetherConnectorTest extends AetherTestCase {
     MetadataDownload downM = new MetadataDownload(metadata, "", downMFile, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
 
     DigestingTransferListener listener = new DigestingTransferListener();
-    session.setTransferListener(listener);
+    session().setTransferListener(listener);
 
-    RepositoryConnector connector = factory.newInstance(session, repository);
+    RepositoryConnector connector = connector();
     connector.put(Arrays.asList(upA), null);
     assertArrayEquals(hash, listener.getHash());
     listener.rewind();

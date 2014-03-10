@@ -52,6 +52,8 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.net.ssl.SSLSocketFactory;
+
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.RepositorySystemSession;
@@ -109,6 +111,10 @@ class AetherRepositoryConnector implements RepositoryConnector {
   private AetherClient aetherClient;
 
   public AetherRepositoryConnector(RemoteRepository repository, RepositorySystemSession session, FileProcessor fileProcessor) throws NoRepositoryConnectorException {
+    this(repository, session, fileProcessor, null);
+  }
+
+  public AetherRepositoryConnector(RemoteRepository repository, RepositorySystemSession session, FileProcessor fileProcessor, SSLSocketFactory sslSocketFactory) throws NoRepositoryConnectorException {
     //
     // Right now this only support a Maven layout which is what we mean by type
     //
@@ -201,6 +207,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
     config.setConnectionTimeout(connectTimeout);
     config.setRequestTimeout(readTimeout);
+    config.setSslSocketFactory(sslSocketFactory);
 
     aetherClient = new OkHttpAetherClient(config);
 

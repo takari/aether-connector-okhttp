@@ -34,7 +34,7 @@ public class TimeoutTest extends AetherTestCase {
     Map<String, Object> configProps = new HashMap<String, Object>();
     configProps.put(ConfigurationProperties.CONNECT_TIMEOUT, "60000");
     configProps.put(ConfigurationProperties.REQUEST_TIMEOUT, "1000");
-    session.setConfigProperties(configProps);
+    session().setConfigProperties(configProps);
 
     File f = TestFileUtils.createTempFile("");
     Artifact a = artifact("foo");

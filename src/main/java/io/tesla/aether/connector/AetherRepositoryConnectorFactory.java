@@ -1,14 +1,18 @@
-/**
- * Copyright (c) 2012 to original author or authors
+/*******************************************************************************
+ * Copyright (c) 2012 Jason van Zyl
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- */
+ *
+ * Contributors:
+ *    Sonatype, Inc. - initial API and implementation
+ *******************************************************************************/
 package io.tesla.aether.connector;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.net.ssl.SSLSocketFactory;
 
 import org.codehaus.plexus.component.annotations.Component;
 import org.eclipse.aether.RepositorySystemSession;
@@ -19,6 +23,7 @@ import org.eclipse.aether.spi.io.FileProcessor;
 import org.eclipse.aether.spi.locator.Service;
 import org.eclipse.aether.spi.locator.ServiceLocator;
 import org.eclipse.aether.transfer.NoRepositoryConnectorException;
+import org.eclipse.sisu.Nullable;
 
 /**
  * A repository connector factory that uses OkHttp for the transfers.
@@ -28,13 +33,12 @@ import org.eclipse.aether.transfer.NoRepositoryConnectorException;
 public final class AetherRepositoryConnectorFactory implements RepositoryConnectorFactory, Service {
 
   private FileProcessor fileProcessor;
-
-  public AetherRepositoryConnectorFactory() {
-  }
+  private SSLSocketFactory sslSocketFactory;
 
   @Inject
-  public AetherRepositoryConnectorFactory(FileProcessor fileProcessor) {
+  public AetherRepositoryConnectorFactory(FileProcessor fileProcessor, @Nullable SSLSocketFactory sslSocketFactory) {
     this.fileProcessor = fileProcessor;
+    this.sslSocketFactory = sslSocketFactory;
   }
 
   public float getPriority() {
@@ -42,7 +46,11 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
   }
 
   public RepositoryConnector newInstance(RepositorySystemSession repositorySystemSession, RemoteRepository remoteRepository) throws NoRepositoryConnectorException {
-    return new AetherRepositoryConnector(remoteRepository, repositorySystemSession, fileProcessor);
+    if (sslSocketFactory != null) {
+      return new AetherRepositoryConnector(remoteRepository, repositorySystemSession, fileProcessor, sslSocketFactory);
+    } else {
+      return new AetherRepositoryConnector(remoteRepository, repositorySystemSession, fileProcessor);
+    }
   }
 
   public void initService(ServiceLocator locator) {
@@ -52,5 +60,4 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
   public void setFileProcessor(FileProcessor fileProcessor) {
     this.fileProcessor = fileProcessor;
   }
-
 }

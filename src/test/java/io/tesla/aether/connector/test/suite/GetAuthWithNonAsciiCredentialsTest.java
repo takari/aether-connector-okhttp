@@ -23,8 +23,8 @@ public class GetAuthWithNonAsciiCredentialsTest extends GetAuthTest {
   }
 
   @Override
-  public RemoteRepository repository() {
+  public RemoteRepository remoteRepository() {
     Authentication auth = new AuthenticationBuilder().addUsername("user-non-ascii").addPassword("\u00E4\u00DF").build();
-    return new RemoteRepository.Builder(super.repository()).setAuthentication(auth).build();
+    return new RemoteRepository.Builder(super.remoteRepository()).setAuthentication(auth).build();
   }
 }

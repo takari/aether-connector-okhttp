@@ -9,6 +9,9 @@ package io.tesla.aether.client;
 
 import java.util.Map;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+
 public class AetherClientConfig {
   
   private String userAgent;
@@ -17,6 +20,7 @@ public class AetherClientConfig {
   private AetherClientProxy proxy;
   private AetherClientAuthentication authentication;
   private Map<String,String> headers;
+  private SSLSocketFactory sslSocketFactory;
   
   public String getUserAgent() {
     return userAgent;
@@ -64,5 +68,14 @@ public class AetherClientConfig {
   
   public void setHeaders(Map<String,String> headers) {
     this.headers = headers;
+  }
+
+  
+  public SSLSocketFactory getSslSocketFactory() {
+    return sslSocketFactory;
+  }
+
+  public void setSslSocketFactory(SSLSocketFactory sslSocketFactory) {
+    this.sslSocketFactory = sslSocketFactory;
   }
 }

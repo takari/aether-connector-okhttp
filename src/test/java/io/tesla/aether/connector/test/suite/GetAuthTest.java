@@ -20,6 +20,6 @@ public class GetAuthTest extends GetTest {
   protected void configureServer(WebServer server) {
     super.configureServer(server);
     server.addAuthentication("/*", "BASIC");
-    server.addUser("user", "password");
+    server.addUser(USERNAME, PASSWORD);
   }
 }

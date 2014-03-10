@@ -27,7 +27,7 @@
     <testHarnessVersion>0.5.1</testHarnessVersion>
     <bouncycastle.version>1.47</bouncycastle.version>
     <npn.version>8.1.2.v20120308</npn.version>
-    <okHttpVersion>1.0.2</okHttpVersion>
+    <okHttpVersion>1.5.0</okHttpVersion>
     <mockwebserver.version>20130201</mockwebserver.version>
     <wagonVersion>2.4</wagonVersion>
     <slf4jVersion>1.7.4</slf4jVersion>
@@ -147,12 +147,14 @@
       <version>${npn.version}</version>
       <scope>test</scope>
     </dependency>
+    <!-- 
     <dependency>
       <groupId>com.google.mockwebserver</groupId>
       <artifactId>mockwebserver</artifactId>
       <version>${mockwebserver.version}</version>
       <scope>test</scope>
     </dependency>
+    -->
     <dependency>
       <groupId>org.eclipse.aether</groupId>
       <artifactId>aether-test-util</artifactId>
@@ -165,6 +167,13 @@
       <version>0.0.2</version>
       <scope>test</scope>
     </dependency>
+    <!-- Changes for OkHttp 1.5 -->
+    <dependency>
+      <groupId>com.squareup.okhttp</groupId>
+      <artifactId>mockwebserver</artifactId>
+      <version>${okHttpVersion}</version>
+      <scope>test</scope>
+    </dependency>    
   </dependencies>
 
   <build>

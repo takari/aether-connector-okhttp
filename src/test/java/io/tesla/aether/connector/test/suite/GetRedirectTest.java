@@ -16,8 +16,8 @@ import org.eclipse.aether.repository.RemoteRepository;
 public class GetRedirectTest extends GetTest {
 
   @Override
-  protected RemoteRepository repository() {
-    return new RemoteRepository.Builder(super.repository()).setUrl(url("redirect")).build();
+  protected RemoteRepository remoteRepository() {
+    return new RemoteRepository.Builder(super.remoteRepository()).setUrl(url("redirect")).build();
   }
 
   @Override

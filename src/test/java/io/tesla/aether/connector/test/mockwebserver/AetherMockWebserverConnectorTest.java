@@ -5,11 +5,12 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package io.tesla.aether.connector.test.suite;
+package io.tesla.aether.connector.test.mockwebserver;
+
+import io.tesla.aether.connector.test.suite.AetherBaseTestCase;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.Authenticator;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;

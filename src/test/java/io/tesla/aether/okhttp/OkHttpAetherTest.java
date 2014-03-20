@@ -7,8 +7,8 @@
  */
 package io.tesla.aether.okhttp;
 
+import io.tesla.aether.connector.test.mockwebserver.AetherMockWebserverConnectorTest;
 import io.tesla.aether.connector.test.suite.AetherConnectorTest;
-import io.tesla.aether.connector.test.suite.AetherMockWebserverConnectorTest;
 import io.tesla.aether.connector.test.suite.GetAuthSslTest;
 import io.tesla.aether.connector.test.suite.GetAuthTest;
 import io.tesla.aether.connector.test.suite.GetAuthWithNonAsciiCredentialsTest;

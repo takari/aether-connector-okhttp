@@ -44,18 +44,18 @@ public class OkHttpAetherClient implements AetherClient {
     this.config = config;
 
     headers = config.getHeaders();
-    
+
     //
     // If the User-Agent has been overriden in the headers then we will use that
     //
     if (headers != null && !headers.containsKey("User-Agent")) {
       headers.put("User-Agent", config.getUserAgent());
     }
-    
+
     //if (!useCache) {
     //  headers.put("Pragma", "no-cache");
     //}
-    
+
     httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(config.getProxy()));
     httpClient.setHostnameVerifier(OkHostnameVerifier.INSTANCE);
@@ -78,8 +78,8 @@ public class OkHttpAetherClient implements AetherClient {
         httpClient.setAuthenticator(authenticator);
       }
     }
-    
-    if(config.getSslSocketFactory() != null) {
+
+    if (config.getSslSocketFactory() != null) {
       this.sslSocketFactory = config.getSslSocketFactory();
     }
   }
@@ -236,16 +236,19 @@ public class OkHttpAetherClient implements AetherClient {
   }
 
   @Override
-  public void close() {}
+  public void close() {
+  }
 
   static class AuthenticateRequestKey {
     private final String host;
     private final int port;
+    private final String path;
     private final Set<OkAuthenticator.Challenge> challenges;
 
     AuthenticateRequestKey(URL url, List<OkAuthenticator.Challenge> challenges) {
       this.host = url.getHost();
       this.port = url.getPort();
+      this.path = url.getPath();
       this.challenges = new HashSet<OkAuthenticator.Challenge>(challenges);
     }
 
@@ -254,6 +257,7 @@ public class OkHttpAetherClient implements AetherClient {
       int hash = 31;
       hash = hash * 17 + host.hashCode();
       hash = hash * 17 + port;
+      hash = hash * 17 + path.hashCode();
       hash = hash * 17 + challenges.hashCode();
       return hash;
     }
@@ -267,7 +271,7 @@ public class OkHttpAetherClient implements AetherClient {
         return false;
       }
       AuthenticateRequestKey other = (AuthenticateRequestKey) obj;
-      return host.equals(other.host) && port == other.port && challenges.equals(other.challenges);
+      return host.equals(other.host) && port == other.port && path.equals(other.path) && challenges.equals(other.challenges);
     }
   }
 
@@ -278,7 +282,7 @@ public class OkHttpAetherClient implements AetherClient {
     private String proxyUsername;
     private String proxyPassword;
 
-    private final Set<AuthenticateRequestKey> handled = new HashSet<AuthenticateRequestKey>();
+    private final Set<AuthenticateRequestKey> handledAuthenticationRequests = new HashSet<AuthenticateRequestKey>();
 
     public String getUsername() {
       return username;
@@ -313,20 +317,22 @@ public class OkHttpAetherClient implements AetherClient {
     }
 
     @Override
-    public Credential authenticate(Proxy proxy, URL url, List<Challenge> challenges)
-        throws IOException {
-      if (!handled.add(new AuthenticateRequestKey(url, challenges))) {
+    public Credential authenticate(Proxy proxy, URL url, List<Challenge> challenges) throws IOException {
+      AuthenticateRequestKey authenticationRequestKey = new AuthenticateRequestKey(url, challenges);
+      if (!handledAuthenticationRequests.contains(authenticationRequestKey)) {
+        handledAuthenticationRequests.add(authenticationRequestKey);
         return Credential.basic(username, password);
-      }
+      } 
       return null;
     }
 
     @Override
-    public Credential authenticateProxy(Proxy proxy, URL url, List<Challenge> challenges)
-        throws IOException {
-      if (!handled.add(new AuthenticateRequestKey(url, challenges))) {
-        return Credential.basic(proxyUsername, proxyPassword);
-      }
+    public Credential authenticateProxy(Proxy proxy, URL url, List<Challenge> challenges) throws IOException {
+      AuthenticateRequestKey authenticationRequestKey = new AuthenticateRequestKey(url, challenges);
+      if (!handledAuthenticationRequests.contains(authenticationRequestKey)) {
+        handledAuthenticationRequests.add(authenticationRequestKey);
+        return Credential.basic(username, password);
+      } 
       return null;
     }
   }

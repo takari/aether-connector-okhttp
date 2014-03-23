@@ -7,7 +7,7 @@
  */
 package io.tesla.aether.connector;
 
-class AuthorizationException
+public class AuthorizationException
     extends Exception
 {
 

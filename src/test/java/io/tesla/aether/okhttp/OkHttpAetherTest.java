@@ -8,7 +8,6 @@
 package io.tesla.aether.okhttp;
 
 import io.tesla.aether.connector.test.mockwebserver.AetherMockWebserverConnectorTest;
-import io.tesla.aether.connector.test.mockwebserver.FailedAuthTest;
 import io.tesla.aether.connector.test.suite.AetherConnectorTest;
 import io.tesla.aether.connector.test.suite.GetAuthSslTest;
 import io.tesla.aether.connector.test.suite.GetAuthTest;
@@ -39,7 +38,6 @@ public class OkHttpAetherTest extends InjectedTestCase {
     
     TestSuite suite = new TestSuite();
     suite.addTestSuite(AetherMockWebserverConnectorTest.class);
-    suite.addTestSuite(FailedAuthTest.class);
     suite.addTestSuite(AetherConnectorTest.class);
     
     //

@@ -21,10 +21,8 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.SocketAddress;
 import java.net.URL;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.net.ssl.SSLSocketFactory;
 
@@ -239,50 +237,12 @@ public class OkHttpAetherClient implements AetherClient {
   public void close() {
   }
 
-  static class AuthenticateRequestKey {
-    private final String host;
-    private final int port;
-    private final String path;
-    private final Set<OkAuthenticator.Challenge> challenges;
-
-    AuthenticateRequestKey(URL url, List<OkAuthenticator.Challenge> challenges) {
-      this.host = url.getHost();
-      this.port = url.getPort();
-      this.path = url.getPath();
-      this.challenges = new HashSet<OkAuthenticator.Challenge>(challenges);
-    }
-
-    @Override
-    public int hashCode() {
-      int hash = 31;
-      hash = hash * 17 + host.hashCode();
-      hash = hash * 17 + port;
-      hash = hash * 17 + path.hashCode();
-      hash = hash * 17 + challenges.hashCode();
-      return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-      if (this == obj) {
-        return true;
-      }
-      if (!(obj instanceof AuthenticateRequestKey)) {
-        return false;
-      }
-      AuthenticateRequestKey other = (AuthenticateRequestKey) obj;
-      return host.equals(other.host) && port == other.port && path.equals(other.path) && challenges.equals(other.challenges);
-    }
-  }
-
   public static class AetherAuthenticator implements OkAuthenticator {
 
     private String username;
     private String password;
     private String proxyUsername;
     private String proxyPassword;
-
-    private final Set<AuthenticateRequestKey> handledAuthenticationRequests = new HashSet<AuthenticateRequestKey>();
 
     public String getUsername() {
       return username;
@@ -318,22 +278,12 @@ public class OkHttpAetherClient implements AetherClient {
 
     @Override
     public Credential authenticate(Proxy proxy, URL url, List<Challenge> challenges) throws IOException {
-      AuthenticateRequestKey authenticationRequestKey = new AuthenticateRequestKey(url, challenges);
-      if (!handledAuthenticationRequests.contains(authenticationRequestKey)) {
-        handledAuthenticationRequests.add(authenticationRequestKey);
-        return Credential.basic(username, password);
-      } 
-      return null;
+      return Credential.basic(username, password);
     }
 
     @Override
     public Credential authenticateProxy(Proxy proxy, URL url, List<Challenge> challenges) throws IOException {
-      AuthenticateRequestKey authenticationRequestKey = new AuthenticateRequestKey(url, challenges);
-      if (!handledAuthenticationRequests.contains(authenticationRequestKey)) {
-        handledAuthenticationRequests.add(authenticationRequestKey);
-        return Credential.basic(username, password);
-      } 
-      return null;
+      return Credential.basic(username, password);
     }
   }
 }

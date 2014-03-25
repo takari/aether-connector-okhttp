@@ -20,6 +20,7 @@ import io.tesla.aether.connector.test.suite.GetResumeTest;
 import io.tesla.aether.connector.test.suite.GetSslTest;
 import io.tesla.aether.connector.test.suite.GetStutteringTest;
 import io.tesla.aether.connector.test.suite.GetTest;
+import io.tesla.aether.connector.test.suite.InvalidCredentialsTest;
 import io.tesla.aether.connector.test.suite.PutAuthSslTest;
 import io.tesla.aether.connector.test.suite.PutAuthTest;
 import io.tesla.aether.connector.test.suite.PutAuthWithNonAsciiCredentialsTest;
@@ -82,6 +83,9 @@ public class OkHttpAetherTest extends InjectedTestCase {
     
     // Timeout
     suite.addTestSuite(TimeoutTest.class);
+    
+    // Credentials
+    suite.addTestSuite(InvalidCredentialsTest.class);
     
     // This will not run on Hudson
     suite.addTestSuite(GetDownloadWhoseSizeExceedsMaxHeapSizeTest.class);

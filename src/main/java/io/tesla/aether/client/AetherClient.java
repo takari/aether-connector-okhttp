@@ -16,7 +16,7 @@ public interface AetherClient {
   Response head(String uri) throws IOException;
   Response get(String uri) throws IOException;
   Response get(String uri, Map<String,String> requestHeaders) throws IOException;
-  Response put(String uri) throws IOException;
+  Response put(String uri, RetryableSource source) throws IOException;
   void close() throws IOException;
   void setSSLSocketFactory(SSLSocketFactory sslSocketFactory);
 }

@@ -1,24 +1,26 @@
 /**
- * Copyright (c) 2012 to original author or authors
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
+ * Copyright (c) 2012 to original author or authors All rights reserved. This program and the
+ * accompanying materials are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
 package io.tesla.aether.okhttp;
 
 import io.tesla.aether.client.AetherClient;
+import io.tesla.aether.client.AetherClientAuthentication;
 import io.tesla.aether.client.AetherClientConfig;
 import io.tesla.aether.client.AetherClientProxy;
 import io.tesla.aether.client.Response;
+import io.tesla.aether.client.RetryableSource;
 import io.tesla.aether.okhttp.ssl.SslContextFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpRetryException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
-import java.net.Proxy;
+import java.net.ProtocolException;
 import java.net.SocketAddress;
 import java.net.URL;
 import java.util.List;
@@ -26,13 +28,12 @@ import java.util.Map;
 
 import javax.net.ssl.SSLSocketFactory;
 
-import com.squareup.okhttp.OkAuthenticator;
+import com.squareup.okhttp.OkAuthenticator.Credential;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.internal.tls.OkHostnameVerifier;
 
 public class OkHttpAetherClient implements AetherClient {
 
-  private boolean useCache = false;
   private Map<String, String> headers;
   private AetherClientConfig config;
   private OkHttpClient httpClient;
@@ -50,32 +51,9 @@ public class OkHttpAetherClient implements AetherClient {
       headers.put("User-Agent", config.getUserAgent());
     }
 
-    //if (!useCache) {
-    //  headers.put("Pragma", "no-cache");
-    //}
-
     httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(config.getProxy()));
     httpClient.setHostnameVerifier(OkHostnameVerifier.INSTANCE);
-
-    if (config.getAuthentication() != null) {
-      AetherAuthenticator authenticator = new AetherAuthenticator();
-      authenticator.setUsername(config.getAuthentication().getUsername());
-      authenticator.setPassword(config.getAuthentication().getPassword());
-      httpClient.setAuthenticator(authenticator);
-    }
-
-    if (config.getProxy() != null) {
-      if (config.getProxy().getAuthentication() != null) {
-        AetherAuthenticator authenticator = (AetherAuthenticator) httpClient.getAuthenticator();
-        if (authenticator == null) {
-          authenticator = new AetherAuthenticator();
-        }
-        authenticator.setProxyUsername(config.getProxy().getAuthentication().getUsername());
-        authenticator.setProxyPassword(config.getProxy().getAuthentication().getPassword());
-        httpClient.setAuthenticator(authenticator);
-      }
-    }
 
     if (config.getSslSocketFactory() != null) {
       this.sslSocketFactory = config.getSslSocketFactory();
@@ -84,40 +62,93 @@ public class OkHttpAetherClient implements AetherClient {
 
   @Override
   public Response head(String uri) throws IOException {
-    HttpURLConnection ohc = httpClient.open(new URL(uri));
-    ohc.setRequestMethod("HEAD");
+    HttpURLConnection ohc;
+    do {
+      ohc = httpClient.open(new URL(uri));
+      ohc.setRequestMethod("HEAD");
+    } while (authenticate(ohc));
     return new ResponseAdapter(ohc);
   }
 
   @Override
   public Response get(String uri) throws IOException {
-    HttpURLConnection ohc = getConnection(uri, null);
-    ohc.setRequestMethod("GET");
+    HttpURLConnection ohc;
+    do {
+      ohc = getConnection(uri, null);
+      ohc.setRequestMethod("GET");
+    } while (authenticate(ohc));
     return new ResponseAdapter(ohc);
   }
 
   @Override
   public Response get(String uri, Map<String, String> requestHeaders) throws IOException {
-    HttpURLConnection ohc = getConnection(uri, requestHeaders);
-    ohc.setRequestMethod("GET");
+    HttpURLConnection ohc;
+    do {
+      ohc = getConnection(uri, requestHeaders);
+      ohc.setRequestMethod("GET");
+    } while (authenticate(ohc));
     return new ResponseAdapter(ohc);
   }
 
   @Override
   // i need the response
-  public Response put(String uri) throws IOException {
-    HttpURLConnection ohc = getConnection(uri, null);
-    ohc.setUseCaches(false);
-    ohc.setRequestProperty("Content-Type", "application/octet-stream");
-    ohc.setRequestMethod("PUT");
-    //
-    // This is in chunked mode by default and setting this parameter makes the underlying outputstream not a 
-    // RetryableOutputStream and fails when authentication is required. Need to make sure this is still efficient
-    // where large files don't blow memory.
-    //
-    //ohc.setFixedLengthStreamingMode((int) file.length());
-    ohc.setDoOutput(true);
+  public Response put(String uri, RetryableSource source) throws IOException {
+    HttpURLConnection ohc;
+    do {
+      ohc = getConnection(uri, null);
+      ohc.setUseCaches(false);
+      ohc.setRequestProperty("Content-Type", "application/octet-stream");
+      ohc.setRequestMethod("PUT");
+      ohc.setDoOutput(true);
+
+      if (source.length()>0) {
+        // setFixedLengthStreamingMode(long) was introduced in java7
+        // use setFixedLengthStreamingMode(int) to maintain compatibility with java6
+        ohc.setFixedLengthStreamingMode((int)source.length());
+      }
+      // TODO investigate if we want/need to use chunked upload
+      // ohc.setChunkedStreamingMode();
+
+      OutputStream os = ohc.getOutputStream();
+      try {
+        source.copyTo(os);
+      } finally {
+        os.close();
+      }
+    } while (authenticate(ohc));
     return new ResponseAdapter(ohc);
+  }
+
+  private boolean authenticate(HttpURLConnection ohc) throws IOException {
+    int status;
+    try {
+      status = ohc.getResponseCode();
+    } catch (HttpRetryException e) {
+      status = e.responseCode();
+    }
+    switch (status) {
+      case HttpURLConnection.HTTP_PROXY_AUTH:
+        if (config.getProxy() == null) {
+          throw new ProtocolException("Received HTTP_PROXY_AUTH (407) code while not using proxy");
+        }
+        if (config.getProxy().getAuthentication() != null
+            && !headers.containsKey("Proxy-Authorization")) {
+          headers.put("Proxy-Authorization", toHeaderValue(config.getProxy().getAuthentication()));
+          return true; // retry
+        }
+        break;
+      case HttpURLConnection.HTTP_UNAUTHORIZED:
+        if (config.getAuthentication() != null && !headers.containsKey("Authorization")) {
+          headers.put("Authorization", toHeaderValue(config.getAuthentication()));
+          return true; // retry
+        }
+        break;
+    }
+    return false; // do not retry
+  }
+
+  private String toHeaderValue(AetherClientAuthentication auth) {
+    return Credential.basic(auth.getUsername(), auth.getPassword()).getHeaderValue();
   }
 
   public void setSSLSocketFactory(SSLSocketFactory sslSocketFactory) {
@@ -164,7 +195,8 @@ public class OkHttpAetherClient implements AetherClient {
     }
   }
 
-  private HttpURLConnection getConnection(String uri, Map<String, String> requestHeaders) throws IOException {
+  private HttpURLConnection getConnection(String uri, Map<String, String> requestHeaders)
+      throws IOException {
 
     checkForSslSystemProperties();
 
@@ -226,64 +258,8 @@ public class OkHttpAetherClient implements AetherClient {
     public InputStream getInputStream() throws IOException {
       return conn.getInputStream();
     }
-
-    @Override
-    public OutputStream getOutputStream() throws IOException {
-      return conn.getOutputStream();
-    }
   }
 
   @Override
-  public void close() {
-  }
-
-  public static class AetherAuthenticator implements OkAuthenticator {
-
-    private String username;
-    private String password;
-    private String proxyUsername;
-    private String proxyPassword;
-
-    public String getUsername() {
-      return username;
-    }
-
-    public void setUsername(String username) {
-      this.username = username;
-    }
-
-    public String getPassword() {
-      return password;
-    }
-
-    public void setPassword(String password) {
-      this.password = password;
-    }
-
-    public String getProxyUsername() {
-      return proxyUsername;
-    }
-
-    public void setProxyUsername(String proxyUsername) {
-      this.proxyUsername = proxyUsername;
-    }
-
-    public String getProxyPassword() {
-      return proxyPassword;
-    }
-
-    public void setProxyPassword(String proxyPassword) {
-      this.proxyPassword = proxyPassword;
-    }
-
-    @Override
-    public Credential authenticate(Proxy proxy, URL url, List<Challenge> challenges) throws IOException {
-      return Credential.basic(username, password);
-    }
-
-    @Override
-    public Credential authenticateProxy(Proxy proxy, URL url, List<Challenge> challenges) throws IOException {
-      return Credential.basic(username, password);
-    }
-  }
+  public void close() {}
 }

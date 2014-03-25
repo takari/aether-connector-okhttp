@@ -9,7 +9,6 @@ package io.tesla.aether.client;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -19,5 +18,4 @@ public interface Response {
   String getHeader(String name);
   Map<String, List<String>> getHeaders();
   InputStream getInputStream() throws IOException;
-  OutputStream getOutputStream() throws IOException;
 }

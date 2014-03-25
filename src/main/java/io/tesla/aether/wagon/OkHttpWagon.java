@@ -12,11 +12,16 @@ import io.tesla.aether.client.AetherClientAuthentication;
 import io.tesla.aether.client.AetherClientConfig;
 import io.tesla.aether.client.AetherClientProxy;
 import io.tesla.aether.client.Response;
+import io.tesla.aether.client.RetryableSource;
 import io.tesla.aether.okhttp.OkHttpAetherClient;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
@@ -31,10 +36,12 @@ import org.apache.maven.wagon.TransferFailedException;
 import org.apache.maven.wagon.Wagon;
 import org.apache.maven.wagon.authentication.AuthenticationException;
 import org.apache.maven.wagon.authorization.AuthorizationException;
+import org.apache.maven.wagon.events.TransferEvent;
 import org.apache.maven.wagon.resource.Resource;
 import org.codehaus.plexus.component.annotations.Component;
-import org.codehaus.plexus.component.annotations.Configuration;
 import org.eclipse.aether.ConfigurationProperties;
+
+import com.google.common.io.Closer;
 
 @Named("http")
 @Component(role = Wagon.class, hint = "http", instantiationStrategy = "per-lookup")
@@ -64,16 +71,134 @@ public class OkHttpWagon extends StreamWagon {
 
   @Override
   public void fillOutputData(OutputData outputData) throws TransferFailedException {
-    Resource resource = outputData.getResource();
-    String url = buildUrl(resource.getName());
-    try {
-      Response response = client.put(url);
-      outputData.setOutputStream(response.getOutputStream());
-    } catch (IOException e) {
-      throw new TransferFailedException("Error transferring file: " + e.getMessage(), e);
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  protected OutputStream getOutputStream(Resource resource) throws TransferFailedException {
+    throw new UnsupportedOperationException();
+  }
+ 
+  
+  abstract class RetryableResource implements RetryableSource {
+    private final Resource resource;
+
+    protected RetryableResource(Resource resource) {
+      this.resource = resource;
+    }
+
+    protected void copy(InputStream is, OutputStream os) throws IOException {
+      TransferEvent transferEvent =
+          new TransferEvent(OkHttpWagon.this, resource, TransferEvent.TRANSFER_PROGRESS,
+              TransferEvent.REQUEST_PUT);
+      transferEvent.setTimestamp(System.currentTimeMillis());
+      Closer closer = Closer.create();
+      try {
+        closer.register(is);
+        closer.register(os);
+        int n = 0;
+        final byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
+        while (-1 != (n = is.read(buffer))) {
+          write(os, n, buffer);
+          fireTransferProgress(transferEvent, buffer, n);
+        }
+      } finally {
+        closer.close();
+      }
+    }
+
+    protected void write(OutputStream os, int n, final byte[] buffer) throws IOException {
+      os.write(buffer, 0, n);
     }
   }
 
+  class FileSource extends RetryableResource {
+    private final File file;
+
+    public FileSource(Resource resource, File file) {
+      super( resource);
+      this.file = file;
+    }
+
+    @Override
+    public void copyTo(OutputStream os) throws IOException {
+      copy(new FileInputStream(file), os);
+    }
+
+    @Override
+    public long length() {
+      return file.length();
+    }
+  }
+
+  class InputStreamSource extends RetryableResource {
+
+    private final InputStream is;
+
+    public InputStreamSource(Resource resource, InputStream is) {
+      super(resource);
+      this.is = is;
+    }
+
+    @Override
+    public void copyTo(OutputStream os) throws IOException {
+      copy(is, os);
+    }
+
+    @Override
+    protected void write(OutputStream os, int n, byte[] buffer) throws IOException {
+      super.write(os, n, buffer);
+    }
+    
+    @Override
+    public long length() {
+      return -1; // unknown
+    }
+  }
+
+  @Override
+  public void put(File file, String resourceName) throws TransferFailedException,
+      ResourceDoesNotExistException, AuthorizationException {
+    Resource resource = new Resource(resourceName);
+
+    firePutInitiated(resource, file);
+
+    resource.setContentLength(file.length());
+
+    resource.setLastModified(file.lastModified());
+
+    RetryableSource source = new FileSource(resource, file);
+
+    put(source, file, resource);
+  }
+
+  @Override
+  protected void putFromStream(InputStream stream, Resource resource)
+      throws TransferFailedException, AuthorizationException, ResourceDoesNotExistException {
+    put(new InputStreamSource(resource, stream), null, resource);
+  }
+
+  private void put(RetryableSource source, File file, Resource resource) throws TransferFailedException {
+    firePutStarted( resource, file );
+
+    String url = buildUrl(resource.getName());
+
+    try {
+      Response response = client.put(url, source);
+      // TODO do I need to worry about response status?
+    } catch (FileNotFoundException e) {
+      fireTransferError(resource, e, TransferEvent.REQUEST_PUT);
+      throw new TransferFailedException("Specified source file does not exist: " + source, e);
+    } catch (IOException e) {
+      fireTransferError(resource, e, TransferEvent.REQUEST_PUT);
+      String msg =
+          "PUT request to: " + resource.getName() + " in " + repository.getName() + " failed";
+      throw new TransferFailedException(msg, e);
+    }
+
+    firePutCompleted( resource, file );
+  }
+  
   @Override
   public void closeConnection() throws ConnectionException {
     if (client != null) {

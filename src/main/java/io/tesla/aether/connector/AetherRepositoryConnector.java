@@ -31,10 +31,10 @@ import io.tesla.aether.client.AetherClientAuthentication;
 import io.tesla.aether.client.AetherClientConfig;
 import io.tesla.aether.client.AetherClientProxy;
 import io.tesla.aether.client.Response;
+import io.tesla.aether.client.RetryableSource;
 import io.tesla.aether.okhttp.OkHttpAetherClient;
 
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -76,6 +76,7 @@ import org.eclipse.aether.transfer.ChecksumFailureException;
 import org.eclipse.aether.transfer.MetadataNotFoundException;
 import org.eclipse.aether.transfer.MetadataTransferException;
 import org.eclipse.aether.transfer.NoRepositoryConnectorException;
+import org.eclipse.aether.transfer.TransferCancelledException;
 import org.eclipse.aether.transfer.TransferEvent;
 import org.eclipse.aether.transfer.TransferEvent.EventType;
 import org.eclipse.aether.transfer.TransferEvent.RequestType;
@@ -109,6 +110,56 @@ class AetherRepositoryConnector implements RepositoryConnector {
   private Map<String, String> commonHeaders;
 
   private AetherClient aetherClient;
+
+  class FileSource implements RetryableSource {
+
+    private long bytesTransferred = 0;
+
+    private final TransferResource resource;
+
+    private TransferCancelledException exception;
+
+    public FileSource(TransferResource transferResource) {
+      this.resource = transferResource;
+    }
+
+    @Override
+    public void copyTo(OutputStream os) throws IOException {
+      Closer closer = Closer.create();
+      try {
+        InputStream is = closer.register(new FileInputStream(resource.getFile()));
+        closer.register(os);
+        int n = 0;
+        final byte[] buffer = new byte[4 * 1024];
+        while (-1 != (n = is.read(buffer))) {
+          os.write(buffer, 0, n);
+          if (listener != null) {
+            listener.transferProgressed(newEvent(resource, null, RequestType.PUT,
+                EventType.PROGRESSED).setTransferredBytes(bytesTransferred)
+                .setDataBuffer(buffer, 0, n).build());
+          }
+          bytesTransferred = bytesTransferred + n;
+        }
+      } catch (TransferCancelledException e) {
+        this.exception = e;
+      } finally {
+        closer.close();
+      }
+    }
+
+    @Override
+    public long length() {
+      return resource.getFile().length();
+    }
+
+    public TransferCancelledException getException() {
+      return exception;
+    }
+
+    public long getBytesTransferred() {
+      return bytesTransferred;
+    }
+  }
 
   public AetherRepositoryConnector(RemoteRepository repository, RepositorySystemSession session, FileProcessor fileProcessor) throws NoRepositoryConnectorException {
     this(repository, session, fileProcessor, null);
@@ -665,8 +716,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
       upload.setState(Transfer.State.ACTIVE);
       final TransferResource transferResource = new TransferResource(repository.getUrl(), path, file, upload.getTrace());
 
-      long bytesTransferred = 0;
-
       try {
         String uri = buildUrl(path);
 
@@ -674,39 +723,23 @@ class AetherRepositoryConnector implements RepositoryConnector {
           listener.transferInitiated(newEvent(transferResource, exception, RequestType.PUT, EventType.INITIATED).build());
         }
 
-        Response response = aetherClient.put(uri);
-
         if (listener != null) {
           transferResource.setContentLength(file.length());
-          listener.transferStarted(newEvent(transferResource, null, RequestType.PUT, EventType.STARTED).setTransferredBytes(bytesTransferred).build());
+          listener.transferStarted(newEvent(transferResource, null, RequestType.PUT, EventType.STARTED).build());
         }
 
-        Closer closer = Closer.create();
-        try {
-          InputStream is = closer.register(new FileInputStream(file));
-          OutputStream os = closer.register(new BufferedOutputStream(response.getOutputStream()));
-          int n = 0;
-          final byte[] buffer = new byte[4 * 1024];
-          while (-1 != (n = is.read(buffer))) {
-            os.write(buffer, 0, n);
-            if (listener != null) {
-              listener.transferProgressed(newEvent(transferResource, null, RequestType.PUT, EventType.PROGRESSED).setTransferredBytes(bytesTransferred).setDataBuffer(buffer, 0, n).build());
-            }
-            bytesTransferred = bytesTransferred + n;
-          }
-        } catch (IOException e) {
-          exception = e;
-        } finally {
-          closer.close();
-        }
+        FileSource source = new FileSource(transferResource);
+        Response response = aetherClient.put(uri, source);
+
+        handleResponseCode(uri, response.getStatusCode(), response.getStatusMessage());
 
         int statusCode = response.getStatusCode();
         if (statusCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
-          throw new TransferException(String.format("Checksum failed for %s with status code %s", uri, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
+          throw new TransferException(String.format("Upload failed for %s with status code %s", uri, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
         }
 
         if (listener != null) {
-          listener.transferSucceeded(newEvent(transferResource, null, RequestType.PUT, EventType.SUCCEEDED).setTransferredBytes(bytesTransferred).build());
+          listener.transferSucceeded(newEvent(transferResource, null, RequestType.PUT, EventType.SUCCEEDED).setTransferredBytes(source.getBytesTransferred()).build());
         }
 
         //
@@ -752,16 +785,22 @@ class AetherRepositoryConnector implements RepositoryConnector {
         throw (Exception) checksum;
       }
 
+      final byte[] bytes = String.valueOf(checksum).getBytes("UTF-8");
       String ext = checksumAlgos.get(algo);
-      Response response = aetherClient.put(uri + ext);
-
-      InputStream is = new ByteArrayInputStream(String.valueOf(checksum).getBytes("UTF-8"));
-      OutputStream os = response.getOutputStream();
-      ByteStreams.copy(is, os);
+      Response response = aetherClient.put(uri + ext, new RetryableSource() {
+        @Override
+        public void copyTo(OutputStream os) throws IOException {
+          ByteStreams.asByteSource(bytes).copyTo(os);
+        }
+        @Override
+        public long length() {
+          return bytes.length;
+        }
+      });
 
       int statusCode = response.getStatusCode();
       if (statusCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
-        throw new TransferException(String.format("Checksum failed for %s with status code %s", uri + ext, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
+        throw new TransferException(String.format("Upload checksum failed for %s with status code %s", uri + ext, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
       }
     } catch (Exception e) {
       String msg = "Failed to upload " + algo + " checksum for " + file + ": " + e.getMessage();

@@ -160,11 +160,10 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
     String authorizationHeader = "Authorization: Basic " + CREDENTIALS;
 
+    // once challenged, the client is expected to send credentials eagerly
     assertContainsNoneMatching(server.takeRequest().getHeaders(), "Authorization: .*");
     assertContains(server.takeRequest().getHeaders(), authorizationHeader);
-    assertContainsNoneMatching(server.takeRequest().getHeaders(), "Authorization: .*");
     assertContains(server.takeRequest().getHeaders(), authorizationHeader);
-    assertContainsNoneMatching(server.takeRequest().getHeaders(), "Authorization: .*");
     assertContains(server.takeRequest().getHeaders(), authorizationHeader);
   }
 
@@ -232,23 +231,9 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     server.enqueue(new MockResponse().setBody(ARTIFACT_CONTENT));
 
     addResponseForTunnelingSslOverAnHttpProxy();
-    if (enableAuth) {
-      MockResponse pleaseAuthenticate = new MockResponse() //
-          .setResponseCode(401) //
-          .addHeader("WWW-Authenticate: Basic realm=\"protected area\"") //
-          .setBody("Please authenticate.");
-      server.enqueue(pleaseAuthenticate);
-    }
     server.enqueue(new MockResponse().setBody(sha1(ARTIFACT_CONTENT)));
 
     addResponseForTunnelingSslOverAnHttpProxy();
-    if (enableAuth) {
-      MockResponse pleaseAuthenticate = new MockResponse() //
-          .setResponseCode(401) //
-          .addHeader("WWW-Authenticate: Basic realm=\"protected area\"") //
-          .setBody("Please authenticate.");
-      server.enqueue(pleaseAuthenticate);
-    }
     server.enqueue(new MockResponse().setBody(md5(ARTIFACT_CONTENT)));
 
     server.play();

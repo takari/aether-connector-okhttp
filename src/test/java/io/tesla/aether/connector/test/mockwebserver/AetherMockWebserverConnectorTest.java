@@ -125,6 +125,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
   @Override
   protected void tearDown() throws Exception {
+    Authenticator.setDefault(null);
     System.clearProperty("proxyHost");
     System.clearProperty("proxyPort");
     System.clearProperty("http.proxyHost");

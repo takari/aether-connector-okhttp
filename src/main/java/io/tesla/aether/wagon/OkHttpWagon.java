@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
@@ -47,7 +49,7 @@ import com.google.common.io.Closer;
 @Component(role = Wagon.class, hint = "http", instantiationStrategy = "per-lookup")
 public class OkHttpWagon extends StreamWagon {
 
-  private Properties httpHeaders;
+  private Map<String,String> httpHeaders;
   
   private AetherClient client;
 
@@ -215,10 +217,10 @@ public class OkHttpWagon extends StreamWagon {
 
     AetherClientConfig config = new AetherClientConfig();
     config.setUserAgent("Maven-Wagon/1.0");
-    
+
     // headers
     if (httpHeaders != null) {
-      config.setHeaders((Map)httpHeaders);
+      config.setHeaders(httpHeaders);
     }
 
     if (getProxyInfo() != null) {
@@ -299,8 +301,13 @@ public class OkHttpWagon extends StreamWagon {
   }
 
   public void setHttpHeaders(Properties httpHeaders) {
-    System.out.println(">>>>> " + httpHeaders);
-    this.httpHeaders = httpHeaders;
+    Map<String,String> map = new HashMap<String, String>();
+    for (Map.Entry<Object,Object> header : httpHeaders.entrySet()) {
+      if (header.getKey() instanceof String && header.getValue() instanceof String) {
+        map.put((String) header.getKey(), (String) header.getValue());
+      }
+    }
+    this.httpHeaders = Collections.unmodifiableMap(map);
   }
 
 }

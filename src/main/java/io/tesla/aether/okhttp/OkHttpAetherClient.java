@@ -23,6 +23,7 @@ import java.net.InetSocketAddress;
 import java.net.ProtocolException;
 import java.net.SocketAddress;
 import java.net.URL;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,7 +43,9 @@ public class OkHttpAetherClient implements AetherClient {
   public OkHttpAetherClient(AetherClientConfig config) {
     this.config = config;
 
-    headers = config.getHeaders();
+    // headers are modified during http auth handshake
+    // make a copy to avoid cross-talk among client instances
+    headers = new HashMap<String, String>(config.getHeaders());
 
     //
     // If the User-Agent has been overriden in the headers then we will use that

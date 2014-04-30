@@ -55,7 +55,7 @@ class FlakyServerHandlerWithNoRangeSupport extends AbstractHandler {
 
     if(attempts.intValue() == requiredRequests) {
       // Write out all the content
-      for (int i = 0; i <= totalSize; i++) {
+      for (int i = 0; i < totalSize; i++) {
         out.write(GetResumeTest.CONTENT_PATTERN[i % GetResumeTest.CONTENT_PATTERN.length]);        
         out.flush();
       }

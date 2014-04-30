@@ -45,7 +45,10 @@ public class OkHttpAetherClient implements AetherClient {
 
     // headers are modified during http auth handshake
     // make a copy to avoid cross-talk among client instances
-    headers = new HashMap<String, String>(config.getHeaders());
+    headers = new HashMap<String, String>();
+    if (config.getHeaders() != null) {
+      headers.putAll(config.getHeaders());
+    }
 
     //
     // If the User-Agent has been overriden in the headers then we will use that

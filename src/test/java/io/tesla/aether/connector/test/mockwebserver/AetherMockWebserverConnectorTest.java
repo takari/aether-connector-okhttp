@@ -46,6 +46,7 @@ import org.slf4j.impl.SimpleLoggerFactory;
 
 import com.google.inject.Binder;
 import com.squareup.okhttp.OkHttpClient;
+import com.squareup.okhttp.OkUrlFactory;
 import com.squareup.okhttp.internal.SslContextBuilder;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
@@ -304,7 +305,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
   //
 
-  private final OkHttpClient client = new OkHttpClient();
+  private final OkUrlFactory client = new OkUrlFactory(new OkHttpClient());
   private HttpURLConnection connection;
 
   /**
@@ -356,7 +357,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
     server.enqueue(new MockResponse().setBody("A"));
     server.play();
-    client.setProxy(server.toProxyAddress());
+    client.client().setProxy(server.toProxyAddress());
     
     URL url = new URL("http://server.com/foo");
     connection = client.open(url);
@@ -382,11 +383,11 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.UPGRADE_TO_SSL_AT_END).clearHeaders());
     server.enqueue(new MockResponse().setBody("A"));
     server.play();
-    client.setProxy(server.toProxyAddress());
+    client.client().setProxy(server.toProxyAddress());
 
     URL url = new URL("https://android.com/foo");
-    client.setSslSocketFactory(sslContext.getSocketFactory());
-    client.setHostnameVerifier(new RecordingHostnameVerifier());
+    client.client().setSslSocketFactory(sslContext.getSocketFactory());
+    client.client().setHostnameVerifier(new RecordingHostnameVerifier());
     connection = client.open(url);
     assertContent("A", connection);
 

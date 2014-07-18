@@ -29,15 +29,16 @@ import java.util.Map;
 
 import javax.net.ssl.SSLSocketFactory;
 
-import com.squareup.okhttp.OkAuthenticator.Credential;
+import com.squareup.okhttp.Credentials;
 import com.squareup.okhttp.OkHttpClient;
+import com.squareup.okhttp.OkUrlFactory;
 import com.squareup.okhttp.internal.tls.OkHostnameVerifier;
 
 public class OkHttpAetherClient implements AetherClient {
 
   private Map<String, String> headers;
   private AetherClientConfig config;
-  private OkHttpClient httpClient;
+  private OkUrlFactory httpClient;
   private SSLSocketFactory sslSocketFactory;
 
   public OkHttpAetherClient(AetherClientConfig config) {
@@ -57,9 +58,10 @@ public class OkHttpAetherClient implements AetherClient {
       headers.put("User-Agent", config.getUserAgent());
     }
 
-    httpClient = new OkHttpClient();
+    OkHttpClient httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(config.getProxy()));
     httpClient.setHostnameVerifier(OkHostnameVerifier.INSTANCE);
+    this.httpClient = new OkUrlFactory(httpClient);
 
     if (config.getSslSocketFactory() != null) {
       this.sslSocketFactory = config.getSslSocketFactory();
@@ -154,7 +156,7 @@ public class OkHttpAetherClient implements AetherClient {
   }
 
   private String toHeaderValue(AetherClientAuthentication auth) {
-    return Credential.basic(auth.getUsername(), auth.getPassword()).getHeaderValue();
+    return Credentials.basic(auth.getUsername(), auth.getPassword());
   }
 
   public void setSSLSocketFactory(SSLSocketFactory sslSocketFactory) {
@@ -207,7 +209,7 @@ public class OkHttpAetherClient implements AetherClient {
     checkForSslSystemProperties();
 
     if (sslSocketFactory != null) {
-      httpClient.setSslSocketFactory(sslSocketFactory);
+      httpClient.client().setSslSocketFactory(sslSocketFactory);
     }
 
     HttpURLConnection ohc = httpClient.open(new URL(uri));

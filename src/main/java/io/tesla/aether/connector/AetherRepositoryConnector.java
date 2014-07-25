@@ -89,7 +89,7 @@ import org.eclipse.aether.util.repository.layout.RepositoryLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.io.ByteStreams;
+import com.google.common.io.ByteSource;
 import com.google.common.io.Closer;
 
 class AetherRepositoryConnector implements RepositoryConnector {
@@ -790,7 +790,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
       Response response = aetherClient.put(uri + ext, new RetryableSource() {
         @Override
         public void copyTo(OutputStream os) throws IOException {
-          ByteStreams.asByteSource(bytes).copyTo(os);
+          ByteSource.wrap(bytes).copyTo(os);
         }
         @Override
         public long length() {

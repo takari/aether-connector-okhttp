@@ -13,12 +13,14 @@ import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.Authenticator;
 import java.net.HttpURLConnection;
+import java.net.PasswordAuthentication;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.inject.Inject;
 import javax.net.ssl.SSLContext;
@@ -167,6 +169,28 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     assertContains(server.takeRequest().getHeaders(), authorizationHeader);
     assertContains(server.takeRequest().getHeaders(), authorizationHeader);
     assertContains(server.takeRequest().getHeaders(), authorizationHeader);
+  }
+
+  public void testArtifactDownloadWithBasicAuthAndSystemAuthenticator() throws Exception {
+    // the point of this test is to validate that default system authenticator is not called
+
+    final AtomicBoolean defaultAuthenticationRequested = new AtomicBoolean(false);
+    Authenticator.setDefault(new Authenticator() {
+      @Override
+      protected PasswordAuthentication getPasswordAuthentication() {
+        defaultAuthenticationRequested.set(true);
+        throw new UnsupportedOperationException();
+      }
+    });
+    try {
+      enableAuthRequests();
+      enqueueServerWithSingleArtifactResponse();
+      downloadArtifact();
+
+      assertFalse(defaultAuthenticationRequested.get());
+    } finally {
+      Authenticator.setDefault(null);
+    }
   }
 
   // http://www.squid-cache.org/mail-archive/squid-users/199811/0488.html

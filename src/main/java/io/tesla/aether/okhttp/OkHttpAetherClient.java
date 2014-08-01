@@ -21,6 +21,7 @@ import java.net.HttpRetryException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.ProtocolException;
+import java.net.Proxy;
 import java.net.SocketAddress;
 import java.net.URL;
 import java.util.HashMap;
@@ -29,12 +30,28 @@ import java.util.Map;
 
 import javax.net.ssl.SSLSocketFactory;
 
+import com.squareup.okhttp.Authenticator;
 import com.squareup.okhttp.Credentials;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.OkUrlFactory;
+import com.squareup.okhttp.Request;
 import com.squareup.okhttp.internal.tls.OkHostnameVerifier;
 
 public class OkHttpAetherClient implements AetherClient {
+
+  private static final Authenticator NOAUTH = new Authenticator() {
+    @Override
+    public Request authenticateProxy(Proxy proxy, com.squareup.okhttp.Response response)
+        throws IOException {
+      return null;
+    }
+
+    @Override
+    public Request authenticate(Proxy proxy, com.squareup.okhttp.Response response)
+        throws IOException {
+      return null;
+    }
+  };
 
   private Map<String, String> headers;
   private AetherClientConfig config;
@@ -61,6 +78,7 @@ public class OkHttpAetherClient implements AetherClient {
     OkHttpClient httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(config.getProxy()));
     httpClient.setHostnameVerifier(OkHostnameVerifier.INSTANCE);
+    httpClient.setAuthenticator(NOAUTH); // see #authenticate below
     this.httpClient = new OkUrlFactory(httpClient);
 
     if (config.getSslSocketFactory() != null) {

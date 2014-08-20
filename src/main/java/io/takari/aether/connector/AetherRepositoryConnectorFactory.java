@@ -35,6 +35,10 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
   private FileProcessor fileProcessor;
   private SSLSocketFactory sslSocketFactory;
 
+  // Default constructor required for the service locator to work with you use this factory outside the confines of Guice.
+  public  AetherRepositoryConnectorFactory() {
+  }
+  
   @Inject
   public AetherRepositoryConnectorFactory(FileProcessor fileProcessor, @Nullable SSLSocketFactory sslSocketFactory) {
     this.fileProcessor = fileProcessor;

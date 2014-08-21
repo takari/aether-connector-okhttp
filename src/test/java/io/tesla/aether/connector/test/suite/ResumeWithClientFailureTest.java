@@ -26,7 +26,7 @@ import org.eclipse.aether.spi.connector.RepositoryConnector;
 import org.eclipse.aether.transfer.TransferEvent;
 import org.eclipse.aether.transfer.TransferEvent.EventType;
 
-import com.google.common.io.Closeables;
+import com.google.common.io.Closer;
 
 public class ResumeWithClientFailureTest extends AetherTestCase {
 
@@ -128,14 +128,15 @@ public class ResumeWithClientFailureTest extends AetherTestCase {
   }
 
   public static void write(byte[] pattern, File file) throws IOException {
+    Closer closer = Closer.create();
     file.deleteOnExit();
     file.getParentFile().mkdirs();
     OutputStream out = null;
     try {
-      out = new BufferedOutputStream(new FileOutputStream(file));
+      out = closer.register(new BufferedOutputStream(new FileOutputStream(file)));
       out.write(pattern);
     } finally {
-      Closeables.closeQuietly(out);
+      closer.close();
     }
   }
 }

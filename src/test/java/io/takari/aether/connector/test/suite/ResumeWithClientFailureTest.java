@@ -19,7 +19,6 @@ import java.util.Queue;
 import java.util.UUID;
 
 import org.eclipse.aether.artifact.Artifact;
-import org.eclipse.aether.internal.test.util.RecordingTransferListener;
 import org.eclipse.aether.repository.RepositoryPolicy;
 import org.eclipse.aether.spi.connector.ArtifactDownload;
 import org.eclipse.aether.spi.connector.RepositoryConnector;

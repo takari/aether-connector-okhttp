@@ -57,6 +57,7 @@ import javax.net.ssl.SSLSocketFactory;
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.internal.impl.Maven2RepositoryLayoutFactory;
 import org.eclipse.aether.repository.AuthenticationContext;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.repository.RepositoryPolicy;
@@ -68,6 +69,7 @@ import org.eclipse.aether.spi.connector.MetadataTransfer;
 import org.eclipse.aether.spi.connector.MetadataUpload;
 import org.eclipse.aether.spi.connector.RepositoryConnector;
 import org.eclipse.aether.spi.connector.Transfer;
+import org.eclipse.aether.spi.connector.layout.RepositoryLayout;
 import org.eclipse.aether.spi.io.FileProcessor;
 //import org.eclipse.aether.spi.log.Logger;
 import org.eclipse.aether.transfer.ArtifactNotFoundException;
@@ -76,6 +78,7 @@ import org.eclipse.aether.transfer.ChecksumFailureException;
 import org.eclipse.aether.transfer.MetadataNotFoundException;
 import org.eclipse.aether.transfer.MetadataTransferException;
 import org.eclipse.aether.transfer.NoRepositoryConnectorException;
+import org.eclipse.aether.transfer.NoRepositoryLayoutException;
 import org.eclipse.aether.transfer.TransferCancelledException;
 import org.eclipse.aether.transfer.TransferEvent;
 import org.eclipse.aether.transfer.TransferEvent.EventType;
@@ -84,8 +87,6 @@ import org.eclipse.aether.transfer.TransferListener;
 import org.eclipse.aether.transfer.TransferResource;
 import org.eclipse.aether.util.ChecksumUtils;
 import org.eclipse.aether.util.ConfigUtils;
-import org.eclipse.aether.util.repository.layout.MavenDefaultLayout;
-import org.eclipse.aether.util.repository.layout.RepositoryLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,7 +97,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   private final Logger logger = LoggerFactory.getLogger(AetherRepositoryConnector.class);
   
-  private final RepositoryLayout layout = new MavenDefaultLayout();
+  private final RepositoryLayout layout;
   private final TransferListener listener;
   private final RepositorySystemSession session;
   private final AuthenticationContext repoAuthenticationContext;
@@ -119,7 +120,10 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
     private TransferCancelledException exception;
 
-    public FileSource(TransferResource transferResource) {
+    private final Transfer transfer;
+
+    public FileSource(Transfer transfer, TransferResource transferResource) {
+      this.transfer = transfer;
       this.resource = transferResource;
     }
 
@@ -133,11 +137,9 @@ class AetherRepositoryConnector implements RepositoryConnector {
         final byte[] buffer = new byte[4 * 1024];
         while (-1 != (n = is.read(buffer))) {
           os.write(buffer, 0, n);
-          if (listener != null) {
-            listener.transferProgressed(newEvent(resource, null, RequestType.PUT,
-                EventType.PROGRESSED).setTransferredBytes(bytesTransferred)
-                .setDataBuffer(buffer, 0, n).build());
-          }
+          transferProgressed(transfer, newEvent(resource, null, RequestType.PUT,
+              EventType.PROGRESSED).setTransferredBytes(bytesTransferred)
+              .setDataBuffer(buffer, 0, n).build());
           bytesTransferred = bytesTransferred + n;
         }
       } catch (TransferCancelledException e) {
@@ -182,6 +184,11 @@ class AetherRepositoryConnector implements RepositoryConnector {
     this.listener = session.getTransferListener();
     this.fileProcessor = fileProcessor;
     this.session = session;
+    try {
+      this.layout = new Maven2RepositoryLayoutFactory().newInstance(session, repository);
+    } catch (NoRepositoryLayoutException e) {
+      throw new NoRepositoryConnectorException(repository, e);
+    }
 
     AetherClientConfig config = new AetherClientConfig();
 
@@ -284,14 +291,14 @@ class AetherRepositoryConnector implements RepositoryConnector {
     Collection<GetTask<?>> tasks = new ArrayList<GetTask<?>>();
 
     for (MetadataDownload download : metadataDownloads) {
-      String resource = layout.getPath(download.getMetadata()).getPath();
+      String resource = layout.getLocation(download.getMetadata(), false).getPath();
       GetTask<?> task = new GetTask<MetadataTransfer>(resource, download.getFile(), download.getChecksumPolicy(), latch, download, METADATA);
       tasks.add(task);
       task.run();
     }
 
     for (ArtifactDownload download : artifactDownloads) {
-      String resource = layout.getPath(download.getArtifact()).getPath();
+      String resource = layout.getLocation(download.getArtifact(), false).getPath();
       GetTask<?> task = new GetTask<ArtifactTransfer>(resource, download.isExistenceCheck() ? null : download.getFile(), download.getChecksumPolicy(), latch, download, ARTIFACT);
       tasks.add(task);
       task.run();
@@ -324,14 +331,14 @@ class AetherRepositoryConnector implements RepositoryConnector {
     Collection<PutTask<?>> tasks = new ArrayList<PutTask<?>>();
 
     for (ArtifactUpload upload : artifactUploads) {
-      String path = layout.getPath(upload.getArtifact()).getPath();
+      String path = layout.getLocation(upload.getArtifact(), true).getPath();
       PutTask<?> task = new PutTask<ArtifactTransfer>(path, upload.getFile(), latch, upload, ARTIFACT);
       tasks.add(task);
       task.run();
     }
 
     for (MetadataUpload upload : metadataUploads) {
-      String path = layout.getPath(upload.getMetadata()).getPath();
+      String path = layout.getLocation(upload.getMetadata(), true).getPath();
       PutTask<?> task = new PutTask<MetadataTransfer>(path, upload.getFile(), latch, upload, METADATA);
       tasks.add(task);
       task.run();
@@ -412,16 +419,11 @@ class AetherRepositoryConnector implements RepositoryConnector {
     }
 
     public void run() {
-
-      download.setState(Transfer.State.ACTIVE);
       String uri = buildUrl(path);
       TransferResource transferResource = new TransferResource(repository.getUrl(), path, fileInLocalRepository, download.getTrace());
 
       try {
-
-        if (listener != null) {
-          listener.transferInitiated(newEvent(transferResource, RequestType.GET, EventType.INITIATED).build());
-        }
+        transferInitiated(download, newEvent(transferResource, RequestType.GET, EventType.INITIATED).build());
 
         // Aether sends a request to the connector for the content to retrieve from a given URL and the file on the local file system
         // to populate with the downloaded content. It is up to the connector to prevent collisions of multiple processes downloading
@@ -453,7 +455,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
           return;
         }
 
-        FileTransfer temporaryFileInLocalRepository = resumableGet(uri, fileInLocalRepository, transferResource, RequestType.GET, listener);
+        FileTransfer temporaryFileInLocalRepository = resumableGet(uri, fileInLocalRepository, transferResource, RequestType.GET, true);
 
         //
         // The file has now been successfully downloaded so let's perform any validations required
@@ -468,18 +470,14 @@ class AetherRepositoryConnector implements RepositoryConnector {
         //
         rename(temporaryFileInLocalRepository.file, fileInLocalRepository);
 
-        if (listener != null) {
-          listener.transferSucceeded(newEvent(transferResource, RequestType.GET, EventType.SUCCEEDED).setTransferredBytes(temporaryFileInLocalRepository.bytesTransferred).build());
-        }
+        transferSucceeded(download, newEvent(transferResource, RequestType.GET, EventType.SUCCEEDED).setTransferredBytes(temporaryFileInLocalRepository.bytesTransferred).build());
       } catch (Throwable t) {
         if (Exception.class.isAssignableFrom(t.getClass())) {
           exception = Exception.class.cast(t);
         } else {
           exception = new Exception(t);
         }
-        if (listener != null) {
-          listener.transferFailed(newEvent(transferResource, exception, RequestType.GET, EventType.FAILED).build());
-        }
+        transferFailed(download, newEvent(transferResource, exception, RequestType.GET, EventType.FAILED).build());
       } finally {
         latch.countDown();
       }
@@ -524,13 +522,9 @@ class AetherRepositoryConnector implements RepositoryConnector {
           throw new ChecksumFailureException("Checksum validation failed" + ", no checksums available from the repository");
         }
       } catch (Exception e) {
-        if (listener != null) {
-          listener.transferCorrupted(newEvent(transferResource, e, RequestType.GET, EventType.CORRUPTED).build());
-        }
+        transferCorrupted(download, newEvent(transferResource, e, RequestType.GET, EventType.CORRUPTED).build());
         if (failOnInvalidOrMissingCheckums) {
-          if (listener != null) {
-            listener.transferFailed(newEvent(transferResource, e, RequestType.GET, EventType.FAILED).build());
-          }
+          transferFailed(download, newEvent(transferResource, e, RequestType.GET, EventType.FAILED).build());
           throw e;
         }
       }
@@ -555,7 +549,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
       try {
 
-        FileTransfer temporaryChecksumFile = resumableGet(checksumUri, checksumFileInLocalRepository, transferResource, RequestType.GET, null);
+        FileTransfer temporaryChecksumFile = resumableGet(checksumUri, checksumFileInLocalRepository, transferResource, RequestType.GET, false);
         String expected = ChecksumUtils.read(temporaryChecksumFile.file);
         if (!expected.equalsIgnoreCase(actual)) {
           throw new ChecksumFailureException(expected, actual);
@@ -570,7 +564,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
       return true;
     }
 
-    private FileTransfer resumableGet(String uri, File fileInLocalRepository, TransferResource transferResource, RequestType requestType, TransferListener listener) throws Exception {
+    private FileTransfer resumableGet(String uri, File fileInLocalRepository, TransferResource transferResource, RequestType requestType, boolean emitProgressEvent) throws Exception {
 
       long bytesTransferred = 0;
 
@@ -632,12 +626,12 @@ class AetherRepositoryConnector implements RepositoryConnector {
           temporaryFileInLocalRepository.delete();
         }
 
-        if (listener != null) {
+        if (emitProgressEvent) {
           String contentLength = response.getHeader("Content-Length");
           if (contentLength != null) {
             long length = Long.parseLong(contentLength);
             transferResource.setContentLength(length);
-            listener.transferStarted(newEvent(transferResource, null, requestType, EventType.STARTED).setTransferredBytes(bytesTransferred).build());
+            transferStarted(download, newEvent(transferResource, null, requestType, EventType.STARTED).setTransferredBytes(bytesTransferred).build());
           }
         }
 
@@ -649,8 +643,8 @@ class AetherRepositoryConnector implements RepositoryConnector {
           OutputStream os = closer.register(new BufferedOutputStream(new FileOutputStream(temporaryFileInLocalRepository, resumeDownloadInProgress)));
           while (-1 != (n = is.read(buffer))) {
             os.write(buffer, 0, n);
-            if (listener != null) {
-              listener.transferProgressed(newEvent(transferResource, null, requestType, EventType.PROGRESSED).setTransferredBytes(n).setDataBuffer(buffer, 0, n).build());
+            if (emitProgressEvent) {
+              transferProgressed(download, newEvent(transferResource, null, requestType, EventType.PROGRESSED).setTransferredBytes(n).setDataBuffer(buffer, 0, n).build());
             }
             bytesTransferred = bytesTransferred + n;
           }
@@ -682,7 +676,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
     public void flush() {
       wrapper.wrap(download, exception, repository);
-      download.setState(Transfer.State.DONE);
     }
 
     private void rename(File from, File to) throws IOException {
@@ -713,22 +706,17 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
     public void run() {
 
-      upload.setState(Transfer.State.ACTIVE);
       final TransferResource transferResource = new TransferResource(repository.getUrl(), path, file, upload.getTrace());
 
       try {
         String uri = buildUrl(path);
 
-        if (listener != null) {
-          listener.transferInitiated(newEvent(transferResource, exception, RequestType.PUT, EventType.INITIATED).build());
-        }
+        transferInitiated(upload, newEvent(transferResource, exception, RequestType.PUT, EventType.INITIATED).build());
 
-        if (listener != null) {
-          transferResource.setContentLength(file.length());
-          listener.transferStarted(newEvent(transferResource, null, RequestType.PUT, EventType.STARTED).build());
-        }
+        transferResource.setContentLength(file.length());
+        transferStarted(upload, newEvent(transferResource, null, RequestType.PUT, EventType.STARTED).build());
 
-        FileSource source = new FileSource(transferResource);
+        FileSource source = new FileSource(upload, transferResource);
         Response response = aetherClient.put(uri, source);
 
         handleResponseCode(uri, response.getStatusCode(), response.getStatusMessage());
@@ -738,9 +726,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
           throw new TransferException(String.format("Upload failed for %s with status code %s", uri, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
         }
 
-        if (listener != null) {
-          listener.transferSucceeded(newEvent(transferResource, null, RequestType.PUT, EventType.SUCCEEDED).setTransferredBytes(source.getBytesTransferred()).build());
-        }
+        transferSucceeded(upload, newEvent(transferResource, null, RequestType.PUT, EventType.SUCCEEDED).setTransferredBytes(source.getBytesTransferred()).build());
 
         //
         // Send up the checksums
@@ -751,9 +737,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
         try {
           exception = e;
         } finally {
-          if (listener != null) {
-            listener.transferFailed(newEvent(transferResource, exception, RequestType.PUT, EventType.FAILED).build());
-          }
+          transferFailed(upload, newEvent(transferResource, exception, RequestType.PUT, EventType.FAILED).build());
         }
       } finally {
         latch.countDown();
@@ -762,7 +746,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
     public void flush() {
       wrapper.wrap(upload, exception, repository);
-      upload.setState(Transfer.State.DONE);
     }
 
     private void uploadChecksums(File file, String uri) {
@@ -860,6 +843,63 @@ class AetherRepositoryConnector implements RepositoryConnector {
       file = new File(f.getParentFile(), "aether-" + UUID.randomUUID() + "-" + f.getName() + "-in-progress");
     } while (file.exists());
     return file;
+  }
+
+  protected void transferInitiated(Transfer transfer, TransferEvent event)
+      throws TransferCancelledException {
+    if (listener != null) {
+      listener.transferInitiated(event);
+    }
+    if (transfer.getListener() != null) {
+      transfer.getListener().transferInitiated(event);
+    }
+  }
+
+  protected void transferSucceeded(Transfer transfer, TransferEvent event) {
+    if (listener != null) {
+      listener.transferSucceeded(event);
+    }
+    if (transfer.getListener() != null) {
+      transfer.getListener().transferSucceeded(event);
+    }
+  }
+
+  protected void transferFailed(Transfer transfer, TransferEvent event) {
+    if (listener != null) {
+      listener.transferFailed(event);
+    }
+    if (transfer.getListener() != null) {
+      transfer.getListener().transferFailed(event);
+    }
+  }
+
+  protected void transferStarted(Transfer transfer, TransferEvent event) throws TransferCancelledException {
+    if (listener != null) {
+      listener.transferStarted(event);
+    }
+    if (transfer.getListener() != null) {
+      transfer.getListener().transferStarted(event);
+    }
+  }
+
+  protected void transferProgressed(Transfer transfer, TransferEvent event)
+      throws TransferCancelledException {
+    if (listener != null) {
+      listener.transferProgressed(event);
+    }
+    if (transfer.getListener() != null) {
+      transfer.getListener().transferProgressed(event);
+    }
+  }
+
+  protected void transferCorrupted(Transfer transfer, TransferEvent event)
+      throws TransferCancelledException {
+    if (listener != null) {
+      listener.transferCorrupted(event);
+    }
+    if (transfer.getListener() != null) {
+      transfer.getListener().transferCorrupted(event);
+    }
   }
 
   private static final ExceptionWrapper<MetadataTransfer> METADATA = new ExceptionWrapper<MetadataTransfer>() {

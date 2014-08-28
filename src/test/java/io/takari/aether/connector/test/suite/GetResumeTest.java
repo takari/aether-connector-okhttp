@@ -70,7 +70,7 @@ public class GetResumeTest extends InjectedTestCase {
   }
 
   private void assertContentPattern(File file) throws IOException {
-    byte[] content = TestFileUtils.getContent(file);
+    byte[] content = TestFileUtils.readBytes(file);
     for (int i = 0; i < content.length; i++) {
       assertEquals(file.getAbsolutePath() + " corrupted at offset " + i, CONTENT_PATTERN[i % CONTENT_PATTERN.length], content[i]);
     }

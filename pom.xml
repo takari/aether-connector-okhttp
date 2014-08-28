@@ -18,7 +18,7 @@
   </parent>
   <groupId>io.takari.aether</groupId>
   <artifactId>aether-connector-okhttp</artifactId>
-  <version>0.13.1-SNAPSHOT</version>
+  <version>0.13.1</version>
   <name>OkHttp Aether Connector</name>
   <description>A repository connector implementation based on Square's OkHttp.</description>
 

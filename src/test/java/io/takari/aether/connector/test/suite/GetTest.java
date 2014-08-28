@@ -1,7 +1,6 @@
 /**
- * Copyright (c) 2012 to original author or authors
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
+ * Copyright (c) 2012 to original author or authors All rights reserved. This program and the
+ * accompanying materials are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
@@ -9,23 +8,24 @@ package io.takari.aether.connector.test.suite;
 
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
 import org.eclipse.aether.artifact.Artifact;
-import org.eclipse.aether.internal.test.util.RecordingTransferListener;
 import org.eclipse.aether.internal.test.util.TestFileUtils;
 import org.eclipse.aether.repository.RepositoryPolicy;
 import org.eclipse.aether.spi.connector.ArtifactDownload;
 import org.eclipse.aether.spi.connector.RepositoryConnector;
 import org.eclipse.aether.transfer.TransferEvent;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class GetTest extends AetherTestCase {
 
   @Test
   public void testDownloadArtifact() throws Exception {
-    
+
     addDelivery("gid/aid/version/aid-version-classifier.extension", "artifact");
     addDelivery("gid/aid/version/aid-version-classifier.extension.sha1", sha1("artifact"));
     addDelivery("gid/aid/version/aid-version-classifier.extension.md5", md5("artifact"));
@@ -38,17 +38,17 @@ public class GetTest extends AetherTestCase {
     RepositoryConnector c = connector();
     c.get(downs, null);
 
-    if(down.getException() != null) {
+    if (down.getException() != null) {
       down.getException().printStackTrace();
     }
 
-    assertNull(String.valueOf(down.getException()), down.getException());       
-    TestFileUtils.assertContent("artifact", f);
+    assertNull(String.valueOf(down.getException()), down.getException());
+    assertContent("artifact", f);
   }
 
   @Test
   public void testDownloadArtifactChecksumFailure() throws Exception {
-    
+
     addDelivery("gid/aid/version/aid-version-classifier.extension", "artifact");
     addDelivery("gid/aid/version/aid-version-classifier.extension.sha1", "foo");
     addDelivery("gid/aid/version/aid-version-classifier.extension.md5", "bar");
@@ -74,7 +74,7 @@ public class GetTest extends AetherTestCase {
     Collection<? extends ArtifactDownload> downs = Arrays.asList(down);
     connector().get(downs, null);
 
-    TestFileUtils.assertContent("", f);
+    assertContent("", f);
     assertNotNull(down.getException());
   }
 
@@ -118,8 +118,8 @@ public class GetTest extends AetherTestCase {
     connector().get(downs, null);
 
     assertNull(String.valueOf(down.getException()), down.getException());
-    TestFileUtils.assertContent("foo", a.getFile());
-    TestFileUtils.assertContent("artifact", f);
+    assertContent("foo", a.getFile());
+    assertContent("artifact", f);
   }
 
   @Test(expected = IllegalStateException.class)
@@ -150,4 +150,18 @@ public class GetTest extends AetherTestCase {
     connector().get(downs, null);
     connector().close();
   }
+
+  public static void assertContent(byte[] expected, File file) throws IOException {
+    Assert.assertArrayEquals(expected, TestFileUtils.readBytes(file));
+  }
+
+  public static void assertContent(String expected, File file) throws IOException {
+    byte[] content = TestFileUtils.readBytes(file);
+    String msg = new String(content, "UTF-8");
+    if (msg.length() > 10) {
+      msg = msg.substring(0, 10) + "...";
+    }
+    Assert.assertArrayEquals("content was '" + msg + "'\n", expected.getBytes("UTF-8"), content);
+  }
+
 }

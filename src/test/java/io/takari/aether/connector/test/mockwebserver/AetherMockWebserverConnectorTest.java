@@ -43,9 +43,12 @@ import org.eclipse.aether.spi.io.FileProcessor;
 import org.eclipse.aether.transfer.NoRepositoryConnectorException;
 import org.eclipse.aether.util.repository.AuthenticationBuilder;
 import org.eclipse.sisu.containers.InjectedTestCase;
+import org.junit.Assert;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.impl.SimpleLoggerFactory;
 
+import com.google.common.base.Charsets;
+import com.google.common.io.Files;
 import com.google.inject.Binder;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.OkUrlFactory;
@@ -283,7 +286,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     RepositoryConnector aetherConnector = connector();
     aetherConnector.get(downloads, null);
     assertNull(String.valueOf(download.getException()), download.getException());
-    TestFileUtils.assertContent(ARTIFACT_CONTENT, artifactFile);
+    Assert.assertEquals(ARTIFACT_CONTENT, Files.toString(artifactFile, Charsets.UTF_8));
   }
 
   private void enableAuthRequests() {

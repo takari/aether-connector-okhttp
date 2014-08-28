@@ -25,14 +25,12 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
-import org.eclipse.aether.internal.test.util.RecordingTransferListener;
 import org.eclipse.aether.internal.test.util.TestFileUtils;
-import org.eclipse.aether.internal.test.util.connector.suite.ConnectorTestSetup;
-import org.eclipse.aether.internal.test.util.connector.suite.TransferEventTester;
 import org.eclipse.aether.metadata.DefaultMetadata;
 import org.eclipse.aether.metadata.Metadata;
 import org.eclipse.aether.repository.RemoteRepository;
@@ -44,13 +42,14 @@ import org.eclipse.aether.spi.connector.MetadataUpload;
 import org.eclipse.aether.spi.connector.RepositoryConnector;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.connector.Transfer;
-import org.eclipse.aether.spi.connector.Transfer.State;
+import org.eclipse.aether.transfer.AbstractTransferListener;
 import org.eclipse.aether.transfer.NoRepositoryConnectorException;
 import org.eclipse.aether.transfer.TransferCancelledException;
 import org.eclipse.aether.transfer.TransferEvent;
 import org.eclipse.aether.transfer.TransferEvent.EventType;
 import org.eclipse.aether.transfer.TransferListener;
 import org.eclipse.aether.transfer.TransferResource;
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -112,6 +111,15 @@ public class AetherConnectorTest extends AetherTestCase {
     connector.close();
   }
 
+  private static class CountingTransferListener extends AbstractTransferListener {
+    public final AtomicInteger successCount = new AtomicInteger();
+    
+    @Override
+    public void transferSucceeded(TransferEvent event) {
+      successCount.incrementAndGet();
+    }
+  }
+
   @Test
   public void testBlocking() throws NoRepositoryConnectorException, IOException {
 
@@ -122,26 +130,28 @@ public class AetherConnectorTest extends AetherTestCase {
     byte[] pattern = "tmpFile".getBytes("UTF-8");
     File tmpFile = TestFileUtils.createTempFile(pattern, 100000);
 
-    List<ArtifactUpload> artUps = createTransfers(ArtifactUpload.class, count, tmpFile);
-    List<MetadataUpload> metaUps = createTransfers(MetadataUpload.class, count, tmpFile);
-    List<ArtifactDownload> artDowns = createTransfers(ArtifactDownload.class, count, null);
-    List<MetadataDownload> metaDowns = createTransfers(MetadataDownload.class, count, null);
+    CountingTransferListener artUpsCounter = new CountingTransferListener();
+    CountingTransferListener metaUpsCounter = new CountingTransferListener();
+    CountingTransferListener artDownsCounter = new CountingTransferListener();
+    CountingTransferListener metaDownsCounter = new CountingTransferListener();
+
+    List<ArtifactUpload> artUps =
+        createTransfers(ArtifactUpload.class, count, tmpFile, artUpsCounter);
+    List<MetadataUpload> metaUps =
+        createTransfers(MetadataUpload.class, count, tmpFile, metaUpsCounter);
+    List<ArtifactDownload> artDowns =
+        createTransfers(ArtifactDownload.class, count, null, artDownsCounter);
+    List<MetadataDownload> metaDowns =
+        createTransfers(MetadataDownload.class, count, null, metaDownsCounter);
 
     // this should block until all transfers are done - racing condition, better way to test this?
     connector.put(artUps, metaUps);
     connector.get(artDowns, metaDowns);
 
-    for (int i = 0; i < count; i++) {
-      ArtifactUpload artUp = artUps.get(i);
-      MetadataUpload metaUp = metaUps.get(i);
-      ArtifactDownload artDown = artDowns.get(i);
-      MetadataDownload metaDown = metaDowns.get(i);
-
-      assertTrue(Transfer.State.DONE.equals(artUp.getState()));
-      assertTrue(Transfer.State.DONE.equals(artDown.getState()));
-      assertTrue(Transfer.State.DONE.equals(metaUp.getState()));
-      assertTrue(Transfer.State.DONE.equals(metaDown.getState()));
-    }
+    Assert.assertEquals(count, artUpsCounter.successCount.intValue());
+    Assert.assertEquals(count, metaUpsCounter.successCount.intValue());
+    Assert.assertEquals(count, artDownsCounter.successCount.intValue());
+    Assert.assertEquals(count, metaDownsCounter.successCount.intValue());
 
     connector.close();
   }
@@ -179,10 +189,14 @@ public class AetherConnectorTest extends AetherTestCase {
       localPath.append("/d");
     }
 
+    
     ArtifactDownload[] artDowns = new ArtifactDownload[numTransfers];
     MetadataDownload[] metaDowns = new MetadataDownload[numTransfers];
 
     for (int m = 0; m < 20; m++) {
+      CountingTransferListener artDownsCounter = new CountingTransferListener();
+      CountingTransferListener metaDownsCounter = new CountingTransferListener();
+
       for (int i = 0; i < numTransfers; i++) {
         File artFile = new File(localPath.toString() + "/a" + i);
         File metaFile = new File(localPath.toString() + "/m" + i);
@@ -191,7 +205,9 @@ public class AetherConnectorTest extends AetherTestCase {
         Metadata meta = new DefaultMetadata("testGroup", "testArtifact", i + "-test", "maven-metadata.xml", Metadata.Nature.RELEASE_OR_SNAPSHOT);
 
         ArtifactDownload artDown = new ArtifactDownload(art, null, artFile, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
+        artDown.setListener(artDownsCounter);
         MetadataDownload metaDown = new MetadataDownload(meta, null, metaFile, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
+        metaDown.setListener(metaDownsCounter);
 
         artDowns[i] = artDown;
         metaDowns[i] = metaDown;
@@ -199,17 +215,10 @@ public class AetherConnectorTest extends AetherTestCase {
 
       connector.get(Arrays.asList(artDowns), Arrays.asList(metaDowns));
 
-      for (int j = 0; j < numTransfers; j++) {
-        ArtifactDownload artDown = artDowns[j];
-        MetadataDownload metaDown = metaDowns[j];
+      Assert.assertEquals(numTransfers, artDownsCounter.successCount.intValue());
+      Assert.assertEquals(numTransfers, metaDownsCounter.successCount.intValue());
 
-        assertNull("artifact download had exception: " + artDown.getException(), artDown.getException());
-        assertNull("metadata download had exception: " + metaDown.getException(), metaDown.getException());
-        assertEquals(State.DONE, artDown.getState());
-        assertEquals(State.DONE, metaDown.getState());
-      }
-
-      TestFileUtils.delete(localRepo);
+      TestFileUtils.deleteFile(localRepo);
     }
 
     connector.close();
@@ -526,7 +535,7 @@ public class AetherConnectorTest extends AetherTestCase {
    * Creates transfer objects according to the given class. If the file parameter is {@code null}, a new temporary
    * file will be created for downloads. Uploads will just use the parameter as it is.
    */
-  public static <T extends Transfer> List<T> createTransfers(Class<T> cls, int count, File file) {
+  public static <T extends Transfer> List<T> createTransfers(Class<T> cls, int count, File file, TransferListener listener) {
     ArrayList<T> ret = new ArrayList<T>();
 
     for (int i = 0; i < count; i++) {
@@ -536,21 +545,29 @@ public class AetherConnectorTest extends AetherTestCase {
       Object obj = null;
       if (cls.isAssignableFrom(ArtifactUpload.class)) {
         Artifact artifact = new DefaultArtifact("testGroup", "testArtifact", "sources", "jar", (i + 1) + "-test");
-        obj = new ArtifactUpload(artifact, file);
+        ArtifactUpload artifactUpload = new ArtifactUpload(artifact, file);
+        artifactUpload.setListener(listener);
+        obj = artifactUpload;
       } else if (cls.isAssignableFrom(ArtifactDownload.class)) {
         try {
           Artifact artifact = new DefaultArtifact("testGroup", "testArtifact", "sources", "jar", (i + 1) + "-test");
-          obj = new ArtifactDownload(artifact, context, safeFile(file), checksumPolicy);
+          ArtifactDownload artifactDownload = new ArtifactDownload(artifact, context, safeFile(file), checksumPolicy);
+          artifactDownload.setListener(listener);
+          obj = artifactDownload;
         } catch (IOException e) {
           throw new RuntimeException(e.getMessage(), e);
         }
       } else if (cls.isAssignableFrom(MetadataUpload.class)) {
         Metadata metadata = new DefaultMetadata("testGroup", "testArtifact", (i + 1) + "-test", "jar", Metadata.Nature.RELEASE_OR_SNAPSHOT, file);
-        obj = new MetadataUpload(metadata, file);
+        MetadataUpload metadataUpload = new MetadataUpload(metadata, file);
+        metadataUpload.setListener(listener);
+        obj = metadataUpload;
       } else if (cls.isAssignableFrom(MetadataDownload.class)) {
         try {
           Metadata metadata = new DefaultMetadata("testGroup", "testArtifact", (i + 1) + "-test", "jar", Metadata.Nature.RELEASE_OR_SNAPSHOT, file);
-          obj = new MetadataDownload(metadata, context, safeFile(file), checksumPolicy);
+          MetadataDownload metadataDownload = new MetadataDownload(metadata, context, safeFile(file), checksumPolicy);
+          metadataDownload.setListener(listener);
+          obj = metadataDownload;
         } catch (IOException e) {
           throw new RuntimeException(e.getMessage(), e);
         }
@@ -560,6 +577,9 @@ public class AetherConnectorTest extends AetherTestCase {
     }
 
     return ret;
+  }
+  public static <T extends Transfer> List<T> createTransfers(Class<T> cls, int count, File file) {
+    return createTransfers(cls, count, file, null);
   }
 
   private static File safeFile(File file) throws IOException {

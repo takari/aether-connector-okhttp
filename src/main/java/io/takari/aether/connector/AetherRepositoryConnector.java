@@ -83,7 +83,6 @@ import org.eclipse.aether.transfer.TransferCancelledException;
 import org.eclipse.aether.transfer.TransferEvent;
 import org.eclipse.aether.transfer.TransferEvent.EventType;
 import org.eclipse.aether.transfer.TransferEvent.RequestType;
-import org.eclipse.aether.transfer.TransferListener;
 import org.eclipse.aether.transfer.TransferResource;
 import org.eclipse.aether.util.ChecksumUtils;
 import org.eclipse.aether.util.ConfigUtils;
@@ -98,7 +97,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
   private final Logger logger = LoggerFactory.getLogger(AetherRepositoryConnector.class);
   
   private final RepositoryLayout layout;
-  private final TransferListener listener;
   private final RepositorySystemSession session;
   private final AuthenticationContext repoAuthenticationContext;
   private final AuthenticationContext proxyAuthenticationContext;
@@ -181,7 +179,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
     //this.logger = logger;
     this.repository = repository;
-    this.listener = session.getTransferListener();
     this.fileProcessor = fileProcessor;
     this.session = session;
     try {
@@ -847,36 +844,24 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   protected void transferInitiated(Transfer transfer, TransferEvent event)
       throws TransferCancelledException {
-    if (listener != null) {
-      listener.transferInitiated(event);
-    }
     if (transfer.getListener() != null) {
       transfer.getListener().transferInitiated(event);
     }
   }
 
   protected void transferSucceeded(Transfer transfer, TransferEvent event) {
-    if (listener != null) {
-      listener.transferSucceeded(event);
-    }
     if (transfer.getListener() != null) {
       transfer.getListener().transferSucceeded(event);
     }
   }
 
   protected void transferFailed(Transfer transfer, TransferEvent event) {
-    if (listener != null) {
-      listener.transferFailed(event);
-    }
     if (transfer.getListener() != null) {
       transfer.getListener().transferFailed(event);
     }
   }
 
   protected void transferStarted(Transfer transfer, TransferEvent event) throws TransferCancelledException {
-    if (listener != null) {
-      listener.transferStarted(event);
-    }
     if (transfer.getListener() != null) {
       transfer.getListener().transferStarted(event);
     }
@@ -884,9 +869,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   protected void transferProgressed(Transfer transfer, TransferEvent event)
       throws TransferCancelledException {
-    if (listener != null) {
-      listener.transferProgressed(event);
-    }
     if (transfer.getListener() != null) {
       transfer.getListener().transferProgressed(event);
     }
@@ -894,9 +876,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   protected void transferCorrupted(Transfer transfer, TransferEvent event)
       throws TransferCancelledException {
-    if (listener != null) {
-      listener.transferCorrupted(event);
-    }
     if (transfer.getListener() != null) {
       transfer.getListener().transferCorrupted(event);
     }

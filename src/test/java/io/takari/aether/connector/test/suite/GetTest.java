@@ -81,7 +81,6 @@ public class GetTest extends AetherTestCase {
   @Test
   public void testDownloadCorrupted() throws Exception {
     RecordingTransferListener transferListener = new RecordingTransferListener();
-    session().setTransferListener(transferListener);
 
     addDelivery("gid/aid/version/aid-version-classifier.extension", "artifact");
     addDelivery("gid/aid/version/aid-version-classifier.extension.sha1", "foo");
@@ -91,6 +90,7 @@ public class GetTest extends AetherTestCase {
     Artifact a = artifact("bla");
 
     ArtifactDownload down = new ArtifactDownload(a, null, f, RepositoryPolicy.CHECKSUM_POLICY_WARN);
+    down.setListener(transferListener);
     Collection<? extends ArtifactDownload> downs = Arrays.asList(down);
     connector().get(downs, null);
 

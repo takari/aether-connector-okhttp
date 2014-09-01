@@ -284,7 +284,11 @@ public class AetherConnectorTest extends AetherTestCase {
     MetadataDownload downM = new MetadataDownload(metadata, "", downMFile, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
 
     DigestingTransferListener listener = new DigestingTransferListener();
-    session().setTransferListener(listener);
+    upA.setListener(listener);
+    upM.setListener(listener);
+    downA.setListener(listener);
+    downM.setListener(listener);
+    
 
     RepositoryConnector connector = connector();
     connector.put(Arrays.asList(upA), null);
@@ -353,7 +357,6 @@ public class AetherConnectorTest extends AetherTestCase {
   public static void testSuccessfulTransferEvents(RepositoryConnectorFactory factory, DefaultRepositorySystemSession session, RemoteRepository repository) throws NoRepositoryConnectorException,
       IOException {
     RecordingTransferListener listener = new RecordingTransferListener(session.getTransferListener());
-    session.setTransferListener(listener);
 
     RepositoryConnector connector = factory.newInstance(session, repository);
 
@@ -361,10 +364,10 @@ public class AetherConnectorTest extends AetherTestCase {
     File tmpFile = TestFileUtils.createTempFile(pattern, 10000);
     long expectedBytes = tmpFile.length();
 
-    Collection<ArtifactUpload> artUps = createTransfers(ArtifactUpload.class, 1, tmpFile);
-    Collection<ArtifactDownload> artDowns = createTransfers(ArtifactDownload.class, 1, tmpFile);
-    Collection<MetadataUpload> metaUps = createTransfers(MetadataUpload.class, 1, tmpFile);
-    Collection<MetadataDownload> metaDowns = createTransfers(MetadataDownload.class, 1, tmpFile);
+    Collection<ArtifactUpload> artUps = createTransfers(ArtifactUpload.class, 1, tmpFile, listener);
+    Collection<ArtifactDownload> artDowns = createTransfers(ArtifactDownload.class, 1, tmpFile, listener);
+    Collection<MetadataUpload> metaUps = createTransfers(MetadataUpload.class, 1, tmpFile, listener);
+    Collection<MetadataDownload> metaDowns = createTransfers(MetadataDownload.class, 1, tmpFile, listener);
 
     connector.put(artUps, null);
     LinkedList<TransferEvent> events = new LinkedList<TransferEvent>(listener.getEvents());
@@ -469,17 +472,16 @@ public class AetherConnectorTest extends AetherTestCase {
    */
   public static void testFailedTransferEvents(RepositoryConnectorFactory factory, DefaultRepositorySystemSession session, RemoteRepository repository) throws NoRepositoryConnectorException, IOException {
     RecordingTransferListener listener = new RecordingTransferListener(session.getTransferListener());
-    session.setTransferListener(listener);
 
     RepositoryConnector connector = factory.newInstance(session, repository);
 
     byte[] pattern = "tmpFile".getBytes("us-ascii");
     File tmpFile = TestFileUtils.createTempFile(pattern, 10000);
 
-    Collection<ArtifactUpload> artUps = createTransfers(ArtifactUpload.class, 1, null);
-    Collection<ArtifactDownload> artDowns = createTransfers(ArtifactDownload.class, 1, tmpFile);
-    Collection<MetadataUpload> metaUps = createTransfers(MetadataUpload.class, 1, null);
-    Collection<MetadataDownload> metaDowns = createTransfers(MetadataDownload.class, 1, tmpFile);
+    Collection<ArtifactUpload> artUps = createTransfers(ArtifactUpload.class, 1, null, listener);
+    Collection<ArtifactDownload> artDowns = createTransfers(ArtifactDownload.class, 1, tmpFile, listener);
+    Collection<MetadataUpload> metaUps = createTransfers(MetadataUpload.class, 1, null, listener);
+    Collection<MetadataDownload> metaDowns = createTransfers(MetadataDownload.class, 1, tmpFile, listener);
 
     connector.put(artUps, null);
     LinkedList<TransferEvent> events = new LinkedList<TransferEvent>(listener.getEvents());

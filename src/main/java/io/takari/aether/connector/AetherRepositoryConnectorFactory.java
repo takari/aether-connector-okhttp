@@ -35,6 +35,24 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
   private FileProcessor fileProcessor;
   private final SSLSocketFactory sslSocketFactory;
 
+  private static final class ConnectorKey {
+    private final RemoteRepository repository;
+
+    public ConnectorKey(RemoteRepository repository) {
+      this.repository = repository;
+    }
+
+    @Override
+    public int hashCode() {
+      return repository.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      return obj instanceof ConnectorKey && repository.equals(((ConnectorKey) obj).repository);
+    }
+  }
+
   // Default constructor required for the service locator to work with you use this factory outside the confines of Guice.
   public  AetherRepositoryConnectorFactory() {
     this(null, null);
@@ -51,11 +69,15 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
   }
 
   public RepositoryConnector newInstance(RepositorySystemSession repositorySystemSession, RemoteRepository remoteRepository) throws NoRepositoryConnectorException {
-    if (sslSocketFactory != null) {
-      return new AetherRepositoryConnector(remoteRepository, repositorySystemSession, fileProcessor, sslSocketFactory);
-    } else {
-      return new AetherRepositoryConnector(remoteRepository, repositorySystemSession, fileProcessor);
+    ConnectorKey key = new ConnectorKey(remoteRepository);
+    RepositoryConnector connector = (RepositoryConnector) repositorySystemSession.getData().get(key);
+    if (connector == null) {
+      connector = new AetherRepositoryConnector(remoteRepository, repositorySystemSession, fileProcessor, sslSocketFactory);
+      if (!repositorySystemSession.getData().set(key, null, connector)) {
+        connector = (RepositoryConnector) repositorySystemSession.getData().get(key);
+      }
     }
+    return connector;
   }
 
   public void initService(ServiceLocator locator) {

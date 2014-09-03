@@ -49,35 +49,6 @@ public class PutTest extends AetherTestCase {
     assertExpectations();
   }
 
-  public void testClosedPut() throws Exception {
-    connector().close();
-    Metadata metadata = metadata("metadata");
-
-    List<MetadataUpload> uploads = Arrays.asList(new MetadataUpload(metadata, metadata.getFile()));
-    try {
-      connector().put(null, uploads);
-      fail("We should have thrown an IllegalStateException!");
-    } catch (Exception e) {
-      //
-      // We expect an exception
-      //
-    }
-  }
-
-  public void testCloseAfterArtifactUpload() throws Exception {
-    Artifact artifact = artifact("artifact");
-    List<ArtifactUpload> uploads = Arrays.asList(new ArtifactUpload(artifact, artifact.getFile()));
-    connector().put(uploads, null);
-    connector().close();
-  }
-
-  public void XtestCloseAfterMetadataUpload() throws Exception {
-    Metadata metadata = metadata("metadata");
-    List<MetadataUpload> uploads = Arrays.asList(new MetadataUpload(metadata, metadata.getFile()));
-    connector().put(null, uploads);
-    connector().close();
-  }
-
   //@Ignore("https://issues.sonatype.org/browse/AHC-5")
   public void IGNOREtestArtifactWithZeroBytesFile() throws Exception {
     String content = "";

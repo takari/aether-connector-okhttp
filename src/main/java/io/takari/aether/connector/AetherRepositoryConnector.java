@@ -94,21 +94,23 @@ import com.google.common.io.Closer;
 
 class AetherRepositoryConnector implements RepositoryConnector {
 
+  private static final Map<String, String> checksumAlgos;
+  
+  static {
+    LinkedHashMap<String, String> _checksumAlgos = new LinkedHashMap<>();
+    _checksumAlgos.put("SHA-1", ".sha1");
+    _checksumAlgos.put("MD5", ".md5");
+    checksumAlgos = Collections.unmodifiableMap(_checksumAlgos);
+  }
+
   private final Logger logger = LoggerFactory.getLogger(AetherRepositoryConnector.class);
   
   private final RepositoryLayout layout;
   private final RepositorySystemSession session;
-  private final AuthenticationContext repoAuthenticationContext;
-  private final AuthenticationContext proxyAuthenticationContext;
   private final FileProcessor fileProcessor;
   private final RemoteRepository repository;
 
-  private final Map<String, String> checksumAlgos;
-  private final AtomicBoolean closed = new AtomicBoolean(false);
-  private boolean useCache = true;
-  private Map<String, String> commonHeaders;
-
-  private AetherClient aetherClient;
+  private final AetherClient aetherClient;
 
   class FileSource implements RetryableSource {
 
@@ -187,15 +189,17 @@ class AetherRepositoryConnector implements RepositoryConnector {
       throw new NoRepositoryConnectorException(repository, e);
     }
 
+    this.aetherClient = newAetherClient(repository, session, sslSocketFactory);
+  }
+
+  private static OkHttpAetherClient newAetherClient(RemoteRepository repository, RepositorySystemSession session,
+      SSLSocketFactory sslSocketFactory) {
     AetherClientConfig config = new AetherClientConfig();
 
-    repoAuthenticationContext = AuthenticationContext.forRepository(session, repository);
-    proxyAuthenticationContext = AuthenticationContext.forProxy(session, repository);
-
-    commonHeaders = new HashMap<String, String>();
+    Map<String, String> commonHeaders = new HashMap<>();
     Map<String, String> headers = (Map<String, String>) ConfigUtils.getMap(session, null, ConfigurationProperties.HTTP_HEADERS + "." + repository.getId(), ConfigurationProperties.HTTP_HEADERS);
     if (headers != null) {
-      this.commonHeaders.putAll(headers);
+      commonHeaders.putAll(headers);
     }
 
     PlexusConfiguration wagonConfig = (PlexusConfiguration) ConfigUtils.getObject(session, null, "aether.connector.wagon.config" + "." + repository.getId());
@@ -228,10 +232,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
     config.setHeaders(commonHeaders);
     config.setUserAgent(ConfigUtils.getString(session, ConfigurationProperties.DEFAULT_USER_AGENT, ConfigurationProperties.USER_AGENT));
 
-    checksumAlgos = new LinkedHashMap<String, String>();
-    checksumAlgos.put("SHA-1", ".sha1");
-    checksumAlgos.put("MD5", ".md5");
-
     if (repository.getProxy() != null) {
       AetherClientProxy proxy = new AetherClientProxy();
       proxy.setHost(repository.getProxy().getHost());
@@ -239,10 +239,15 @@ class AetherRepositoryConnector implements RepositoryConnector {
       //
       // Proxy authorization
       //
+      AuthenticationContext proxyAuthenticationContext = AuthenticationContext.forProxy(session, repository);
       if (proxyAuthenticationContext != null) {
-        String username = proxyAuthenticationContext.get(AuthenticationContext.USERNAME);
-        String password = proxyAuthenticationContext.get(AuthenticationContext.PASSWORD);
-        proxy.setAuthentication(new AetherClientAuthentication(username, password));
+        try {
+          String username = proxyAuthenticationContext.get(AuthenticationContext.USERNAME);
+          String password = proxyAuthenticationContext.get(AuthenticationContext.PASSWORD);
+          proxy.setAuthentication(new AetherClientAuthentication(username, password));
+        } finally {
+          AuthenticationContext.close(proxyAuthenticationContext);
+        }
       }
       config.setProxy(proxy);
     }
@@ -250,11 +255,16 @@ class AetherRepositoryConnector implements RepositoryConnector {
     //
     // Authorization
     //
+    AuthenticationContext repoAuthenticationContext = AuthenticationContext.forRepository(session, repository);
     if (repoAuthenticationContext != null) {
-      String username = repoAuthenticationContext.get(AuthenticationContext.USERNAME);
-      String password = repoAuthenticationContext.get(AuthenticationContext.PASSWORD);
-      AetherClientAuthentication authentication = new AetherClientAuthentication(username, password);
-      config.setAuthentication(authentication);
+      try {
+        String username = repoAuthenticationContext.get(AuthenticationContext.USERNAME);
+        String password = repoAuthenticationContext.get(AuthenticationContext.PASSWORD);
+        AetherClientAuthentication authentication = new AetherClientAuthentication(username, password);
+        config.setAuthentication(authentication);
+      } finally {
+        AuthenticationContext.close(repoAuthenticationContext);
+      }
     }
 
     int connectTimeout = ConfigUtils.getInteger(session, ConfigurationProperties.DEFAULT_CONNECT_TIMEOUT, ConfigurationProperties.CONNECT_TIMEOUT);
@@ -264,8 +274,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
     config.setRequestTimeout(readTimeout);
     config.setSslSocketFactory(sslSocketFactory);
 
-    aetherClient = new OkHttpAetherClient(config);
-
+    return new OkHttpAetherClient(config);
   }
 
   /**
@@ -275,11 +284,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
    * @param metadataDownloads The metadata downloads to perform, may be {@code null} or empty.
    */
   public void get(Collection<? extends ArtifactDownload> artifactDownloads, Collection<? extends MetadataDownload> metadataDownloads) {
-
-    if (closed.get()) {
-      throw new IllegalStateException("connector closed");
-    }
-
     artifactDownloads = safe(artifactDownloads);
     metadataDownloads = safe(metadataDownloads);
 
@@ -315,11 +319,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
    * @param metadataUploads The metadata uploads to perform, may be {@code null} or empty.
    */
   public void put(Collection<? extends ArtifactUpload> artifactUploads, Collection<? extends MetadataUpload> metadataUploads) {
-
-    if (closed.get()) {
-      throw new IllegalStateException("connector closed");
-    }
-
     artifactUploads = safe(artifactUploads);
     metadataUploads = safe(metadataUploads);
 
@@ -815,9 +814,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
   }
 
   public void close() {
-    closed.set(true);
-    AuthenticationContext.close(repoAuthenticationContext);
-    AuthenticationContext.close(proxyAuthenticationContext);
+    // this client implementation is thread-safe
   }
 
   private <T> Collection<T> safe(Collection<T> items) {

@@ -122,35 +122,6 @@ public class GetTest extends AetherTestCase {
     assertContent("artifact", f);
   }
 
-  @Test(expected = IllegalStateException.class)
-  public void testClosedGet() throws Exception {
-    connector().close();
-
-    File f = TestFileUtils.createTempFile("");
-    Artifact a = artifact("foo");
-
-    ArtifactDownload down = new ArtifactDownload(a, null, f, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
-    Collection<? extends ArtifactDownload> downs = Arrays.asList(down);
-    try {
-      connector().get(downs, null);
-      fail("Should catch an IllegalStateException!");
-    } catch (IllegalStateException e) {
-      //
-      // We should throw this exception
-      //
-    }
-  }
-
-  @Test
-  public void testCloseAfterArtifactDownload() throws Exception {
-    File f = TestFileUtils.createTempFile("");
-    Artifact a = artifact("foo");
-    ArtifactDownload down = new ArtifactDownload(a, null, f, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
-    Collection<? extends ArtifactDownload> downs = Arrays.asList(down);
-    connector().get(downs, null);
-    connector().close();
-  }
-
   public static void assertContent(byte[] expected, File file) throws IOException {
     Assert.assertArrayEquals(expected, TestFileUtils.readBytes(file));
   }

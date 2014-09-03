@@ -68,11 +68,6 @@
       <artifactId>okhttp</artifactId>
       <version>${okHttpVersion}</version>
     </dependency>
-    <dependency>
-      <groupId>com.squareup.okhttp</groupId>
-      <artifactId>okhttp-urlconnection</artifactId>
-      <version>${okHttpVersion}</version>
-    </dependency>
     <!-- Aether -->
     <dependency>
       <groupId>org.eclipse.aether</groupId>
@@ -179,6 +174,13 @@
       <version>${okHttpVersion}</version>
       <scope>test</scope>
     </dependency>    
+    <!-- Changes for OkHttp 2.0 -->
+    <dependency>
+      <groupId>com.squareup.okhttp</groupId>
+      <artifactId>okhttp-urlconnection</artifactId>
+      <version>${okHttpVersion}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

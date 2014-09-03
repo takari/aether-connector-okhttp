@@ -16,25 +16,26 @@ import io.takari.aether.okhttp.ssl.SslContextFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpRetryException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.ProtocolException;
 import java.net.Proxy;
 import java.net.SocketAddress;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLSocketFactory;
 
+import okio.BufferedSink;
+
 import com.squareup.okhttp.Authenticator;
 import com.squareup.okhttp.Credentials;
+import com.squareup.okhttp.MediaType;
 import com.squareup.okhttp.OkHttpClient;
-import com.squareup.okhttp.OkUrlFactory;
 import com.squareup.okhttp.Request;
+import com.squareup.okhttp.RequestBody;
 import com.squareup.okhttp.internal.tls.OkHostnameVerifier;
 
 public class OkHttpAetherClient implements AetherClient {
@@ -55,8 +56,7 @@ public class OkHttpAetherClient implements AetherClient {
 
   private Map<String, String> headers;
   private AetherClientConfig config;
-  private OkUrlFactory httpClient;
-  private SSLSocketFactory sslSocketFactory;
+  private OkHttpClient httpClient;
 
   public OkHttpAetherClient(AetherClientConfig config) {
     this.config = config;
@@ -71,7 +71,7 @@ public class OkHttpAetherClient implements AetherClient {
     //
     // If the User-Agent has been overriden in the headers then we will use that
     //
-    if (headers != null && !headers.containsKey("User-Agent")) {
+    if (!headers.containsKey("User-Agent")) {
       headers.put("User-Agent", config.getUserAgent());
     }
 
@@ -79,80 +79,86 @@ public class OkHttpAetherClient implements AetherClient {
     httpClient.setProxy(getProxy(config.getProxy()));
     httpClient.setHostnameVerifier(OkHostnameVerifier.INSTANCE);
     httpClient.setAuthenticator(NOAUTH); // see #authenticate below
-    this.httpClient = new OkUrlFactory(httpClient);
-
+    httpClient.setConnectTimeout(config.getConnectionTimeout(), TimeUnit.MILLISECONDS);
+    httpClient.setReadTimeout(config.getRequestTimeout(), TimeUnit.MILLISECONDS);
     if (config.getSslSocketFactory() != null) {
-      this.sslSocketFactory = config.getSslSocketFactory();
+      httpClient.setSslSocketFactory(config.getSslSocketFactory());
+    } else {
+      // I am not entirely sure this code is necessary. I wonder if okhttp already does all this
+      SSLSocketFactory sslSocketFactory = getDefaultSSLSocketFactory();
+      if (sslSocketFactory != null) {
+        httpClient.setSslSocketFactory(sslSocketFactory);
+      }
     }
+    this.httpClient = httpClient;
   }
 
   @Override
   public Response head(String uri) throws IOException {
-    HttpURLConnection ohc;
+    Response response;
     do {
-      ohc = httpClient.open(new URL(uri));
-      ohc.setRequestMethod("HEAD");
-    } while (authenticate(ohc));
-    return new ResponseAdapter(ohc);
+      response = execute(httpClient, builder(uri, null).head().build());
+    } while (response == null);
+    return response;
   }
 
   @Override
   public Response get(String uri) throws IOException {
-    HttpURLConnection ohc;
+    Response response;
     do {
-      ohc = getConnection(uri, null);
-      ohc.setRequestMethod("GET");
-    } while (authenticate(ohc));
-    return new ResponseAdapter(ohc);
+      response = execute(httpClient, builder(uri, null).get().build());
+    } while (response == null);
+    return response;
   }
 
   @Override
   public Response get(String uri, Map<String, String> requestHeaders) throws IOException {
-    HttpURLConnection ohc;
+    Response response;
     do {
-      ohc = getConnection(uri, requestHeaders);
-      ohc.setRequestMethod("GET");
-    } while (authenticate(ohc));
-    return new ResponseAdapter(ohc);
+      response = execute(httpClient, builder(uri, requestHeaders).get().build());
+    } while (response == null);
+    return response;
   }
 
   @Override
   // i need the response
-  public Response put(String uri, RetryableSource source) throws IOException {
-    HttpURLConnection ohc;
+  public Response put(String uri, final RetryableSource source) throws IOException {
+    Response response;
     do {
-      ohc = getConnection(uri, null);
-      ohc.setUseCaches(false);
-      ohc.setRequestProperty("Content-Type", "application/octet-stream");
-      ohc.setRequestMethod("PUT");
-      ohc.setDoOutput(true);
+      // disable response caching
+      // connection.addRequestProperty("Cache-Control", "no-cache") may work too
+      OkHttpClient httpClient = this.httpClient.clone().setCache(null);
 
-      if (source.length()>0) {
-        // setFixedLengthStreamingMode(long) was introduced in java7
-        // use setFixedLengthStreamingMode(int) to maintain compatibility with java6
-        ohc.setFixedLengthStreamingMode((int)source.length());
+      final MediaType mediaType = MediaType.parse("application/octet-stream");
+      final RequestBody body = new RequestBody() {
+
+        @Override
+        public void writeTo(BufferedSink sink) throws IOException {
+          source.copyTo(sink.outputStream());
+        }
+
+        @Override
+        public MediaType contentType() {
+          return mediaType;
+        }
+      };
+
+      Request.Builder builder = builder(uri, null).put(body);
+
+      if (source.length() > 0) {
+        builder.header("Content-Length", Long.toString(source.length()));
       }
       // TODO investigate if we want/need to use chunked upload
-      // ohc.setChunkedStreamingMode();
+      // builder.header("Transfer-Encoding", "chunked");
 
-      OutputStream os = ohc.getOutputStream();
-      try {
-        source.copyTo(os);
-      } finally {
-        os.close();
-      }
-    } while (authenticate(ohc));
-    return new ResponseAdapter(ohc);
+      response = execute(httpClient, builder.build());
+    } while (response == null);
+    return response;
   }
 
-  private boolean authenticate(HttpURLConnection ohc) throws IOException {
-    int status;
-    try {
-      status = ohc.getResponseCode();
-    } catch (HttpRetryException e) {
-      status = e.responseCode();
-    }
-    switch (status) {
+  private Response execute(OkHttpClient httpClient, Request request) throws IOException {
+    com.squareup.okhttp.Response response = httpClient.newCall(request).execute();
+    switch (response.code()) {
       case HttpURLConnection.HTTP_PROXY_AUTH:
         if (config.getProxy() == null) {
           throw new ProtocolException("Received HTTP_PROXY_AUTH (407) code while not using proxy");
@@ -160,17 +166,17 @@ public class OkHttpAetherClient implements AetherClient {
         if (config.getProxy().getAuthentication() != null
             && !headers.containsKey("Proxy-Authorization")) {
           headers.put("Proxy-Authorization", toHeaderValue(config.getProxy().getAuthentication()));
-          return true; // retry
+          return null; // retry
         }
         break;
       case HttpURLConnection.HTTP_UNAUTHORIZED:
         if (config.getAuthentication() != null && !headers.containsKey("Authorization")) {
           headers.put("Authorization", toHeaderValue(config.getAuthentication()));
-          return true; // retry
+          return null; // retry
         }
         break;
     }
-    return false; // do not retry
+    return new ResponseAdapter(response); // do not retry
   }
 
   private String toHeaderValue(AetherClientAuthentication auth) {
@@ -178,7 +184,7 @@ public class OkHttpAetherClient implements AetherClient {
   }
 
   public void setSSLSocketFactory(SSLSocketFactory sslSocketFactory) {
-    this.sslSocketFactory = sslSocketFactory;
+    httpClient.setSslSocketFactory(sslSocketFactory);
   }
 
   private java.net.Proxy getProxy(AetherClientProxy proxy) {
@@ -192,97 +198,90 @@ public class OkHttpAetherClient implements AetherClient {
     return ohp;
   }
 
-  private void checkForSslSystemProperties() {
+  private SSLSocketFactory getDefaultSSLSocketFactory() {
 
-    if (sslSocketFactory == null) {
-      String keyStorePath = System.getProperty("javax.net.ssl.keyStore");
-      String keyStorePassword = System.getProperty("javax.net.ssl.keyStorePassword");
-      String keyStoreType = System.getProperty("javax.net.ssl.keyStoreType");
-      String trustStorePath = System.getProperty("javax.net.ssl.trustStore");
-      String trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword");
-      String trustStoreType = System.getProperty("javax.net.ssl.trustStoreType");
+    String keyStorePath = System.getProperty("javax.net.ssl.keyStore");
+    String keyStorePassword = System.getProperty("javax.net.ssl.keyStorePassword");
+    String keyStoreType = System.getProperty("javax.net.ssl.keyStoreType");
+    String trustStorePath = System.getProperty("javax.net.ssl.trustStore");
+    String trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword");
+    String trustStoreType = System.getProperty("javax.net.ssl.trustStoreType");
 
-      SslContextFactory scf = new SslContextFactory();
-      if (keyStorePath != null && keyStorePassword != null) {
-        scf.setKeyStorePath(keyStorePath);
-        scf.setKeyStorePassword(keyStorePassword);
-        scf.setKeyStoreType(keyStoreType);
-        if (trustStorePath != null && trustStorePassword != null) {
-          scf.setTrustStore(trustStorePath);
-          scf.setTrustStorePassword(trustStorePassword);
-          scf.setTrustStoreType(trustStoreType);
-        }
-        try {
-          sslSocketFactory = scf.getSslContext().getSocketFactory();
-        } catch (Exception e) {
-          // do nothing
-        }
+    SslContextFactory scf = new SslContextFactory();
+    if (keyStorePath != null && keyStorePassword != null) {
+      scf.setKeyStorePath(keyStorePath);
+      scf.setKeyStorePassword(keyStorePassword);
+      scf.setKeyStoreType(keyStoreType);
+      if (trustStorePath != null && trustStorePassword != null) {
+        scf.setTrustStore(trustStorePath);
+        scf.setTrustStorePassword(trustStorePassword);
+        scf.setTrustStoreType(trustStoreType);
+      }
+      try {
+        return scf.getSslContext().getSocketFactory();
+      } catch (Exception e) {
+        // do nothing
       }
     }
+
+    return null;
   }
 
-  private HttpURLConnection getConnection(String uri, Map<String, String> requestHeaders)
+  private Request.Builder builder(String uri, Map<String, String> requestHeaders)
       throws IOException {
-
-    checkForSslSystemProperties();
-
-    if (sslSocketFactory != null) {
-      httpClient.client().setSslSocketFactory(sslSocketFactory);
-    }
-
-    HttpURLConnection ohc = httpClient.open(new URL(uri));
+    Request.Builder builder = new Request.Builder().url(uri);
 
     // Headers
     if (headers != null) {
       for (String headerName : headers.keySet()) {
-        ohc.addRequestProperty(headerName, headers.get(headerName));
+        builder.addHeader(headerName, headers.get(headerName));
       }
     }
 
     if (requestHeaders != null) {
       for (String headerName : requestHeaders.keySet()) {
-        ohc.addRequestProperty(headerName, requestHeaders.get(headerName));
+        builder.addHeader(headerName, requestHeaders.get(headerName));
       }
     }
 
-    // Timeouts
-    ohc.setConnectTimeout(config.getConnectionTimeout());
-    ohc.setReadTimeout(config.getRequestTimeout());
-
-    return ohc;
+    return builder;
   }
 
   class ResponseAdapter implements Response {
 
-    HttpURLConnection conn;
+    com.squareup.okhttp.Response conn;
 
-    ResponseAdapter(HttpURLConnection conn) {
+    ResponseAdapter(com.squareup.okhttp.Response conn) {
       this.conn = conn;
     }
 
     @Override
     public int getStatusCode() throws IOException {
-      return conn.getResponseCode();
+      return conn.code();
     }
 
     @Override
     public String getStatusMessage() throws IOException {
-      return conn.getResponseMessage();
+      return conn.message();
     }
 
     @Override
     public String getHeader(String name) {
-      return conn.getHeaderField(name);
+      return conn.header(name);
     }
 
     @Override
     public Map<String, List<String>> getHeaders() {
-      return conn.getHeaderFields();
+      Map<String, List<String>> headers = new HashMap<String, List<String>>();
+      for (String header : conn.headers().names()) {
+        headers.put(header, conn.headers(header));
+      }
+      return headers;
     }
 
     @Override
     public InputStream getInputStream() throws IOException {
-      return conn.getInputStream();
+      return conn.body().byteStream();
     }
   }
 

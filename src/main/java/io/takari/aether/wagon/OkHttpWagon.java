@@ -35,18 +35,15 @@ import org.apache.maven.wagon.OutputData;
 import org.apache.maven.wagon.ResourceDoesNotExistException;
 import org.apache.maven.wagon.StreamWagon;
 import org.apache.maven.wagon.TransferFailedException;
-import org.apache.maven.wagon.Wagon;
 import org.apache.maven.wagon.authentication.AuthenticationException;
 import org.apache.maven.wagon.authorization.AuthorizationException;
 import org.apache.maven.wagon.events.TransferEvent;
 import org.apache.maven.wagon.resource.Resource;
-import org.codehaus.plexus.component.annotations.Component;
 import org.eclipse.aether.ConfigurationProperties;
 
 import com.google.common.io.Closer;
 
 @Named("http")
-@Component(role = Wagon.class, hint = "http", instantiationStrategy = "per-lookup")
 public class OkHttpWagon extends StreamWagon {
 
   private Map<String,String> httpHeaders;

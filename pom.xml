@@ -114,13 +114,6 @@
       <version>${wagonVersion}</version>
       <scope>provided</scope>
     </dependency>
-    <dependency>
-      <groupId>org.codehaus.plexus</groupId>
-      <artifactId>plexus-component-annotations</artifactId>
-      <version>1.5.5</version>
-      <scope>provided</scope>
-      <optional>true</optional>
-    </dependency>
     <!-- Logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -143,6 +136,12 @@
       <artifactId>org.eclipse.sisu.plexus</artifactId>
       <version>0.0.0.M2a</version>
       <scope>provided</scope>
+      <exclusions>
+        <exclusion>
+          <artifactId>plexus-component-annotations</artifactId>
+          <groupId>org.codehaus.plexus</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.bouncycastle</groupId>
@@ -204,20 +203,6 @@
             <phase>process-classes</phase>
             <goals>
               <goal>main-index</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.codehaus.plexus</groupId>
-        <artifactId>plexus-component-metadata</artifactId>
-        <version>1.5.5</version>
-        <executions>
-          <execution>
-            <id>generate-components-xml</id>
-            <phase>process-classes</phase>
-            <goals>
-              <goal>generate-metadata</goal>
             </goals>
           </execution>
         </executions>

@@ -29,10 +29,8 @@ package io.takari.aether.wagon;
 import javax.inject.Named;
 
 import org.apache.maven.wagon.ConnectionException;
-import org.apache.maven.wagon.Wagon;
 import org.apache.maven.wagon.authentication.AuthenticationException;
 import org.apache.maven.wagon.proxy.ProxyInfo;
-import org.codehaus.plexus.component.annotations.Component;
 
 /**
  * LightweightHttpsWagon, using JDK's HttpURLConnection.
@@ -45,7 +43,6 @@ import org.codehaus.plexus.component.annotations.Component;
  *   instantiation-strategy="per-lookup"
  */
 @Named("https")
-@Component(role = Wagon.class, hint = "https")
 public class OkHttpsWagon extends OkHttpWagon {
   private String previousHttpsProxyHost;
 

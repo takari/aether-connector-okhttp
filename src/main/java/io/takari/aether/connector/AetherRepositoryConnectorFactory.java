@@ -12,9 +12,9 @@ package io.takari.aether.connector;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Singleton;
 import javax.net.ssl.SSLSocketFactory;
 
-import org.codehaus.plexus.component.annotations.Component;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.spi.connector.RepositoryConnector;
@@ -28,15 +28,16 @@ import org.eclipse.sisu.Nullable;
 /**
  * A repository connector factory that uses OkHttp for the transfers.
  */
-@Named
-@Component(role = RepositoryConnectorFactory.class, hint = "okhttp")
+@Named("okhttp")
+@Singleton
 public final class AetherRepositoryConnectorFactory implements RepositoryConnectorFactory, Service {
 
   private FileProcessor fileProcessor;
-  private SSLSocketFactory sslSocketFactory;
+  private final SSLSocketFactory sslSocketFactory;
 
   // Default constructor required for the service locator to work with you use this factory outside the confines of Guice.
   public  AetherRepositoryConnectorFactory() {
+    this(null, null);
   }
   
   @Inject

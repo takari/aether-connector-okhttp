@@ -758,7 +758,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   private void uploadChecksum(File file, String uri, String algo, Object checksum) throws IOException {
 
-    Closer closer = Closer.create();
     try {
       if (checksum instanceof Exception) {
         throw (Exception) checksum;
@@ -788,8 +787,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
       } else {
         logger.warn(msg);
       }
-    } finally {
-      closer.close();
     }
   }
 

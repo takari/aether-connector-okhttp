@@ -171,7 +171,6 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     assertContainsNoneMatching(server.takeRequest().getHeaders(), "Authorization: .*");
     assertContains(server.takeRequest().getHeaders(), authorizationHeader);
     assertContains(server.takeRequest().getHeaders(), authorizationHeader);
-    assertContains(server.takeRequest().getHeaders(), authorizationHeader);
   }
 
   public void testArtifactDownloadWithBasicAuthAndSystemAuthenticator() throws Exception {
@@ -205,7 +204,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     //
     // Make sure that the client is sending the correct headers for BASIC authentication
     //
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
       RecordedRequest request = server.takeRequest();
       assertRequestMatches(request.getRequestLine(), String.format("GET http://%s/repo(.*) HTTP/1.1", proxyTarget));
       assertContains(request.getHeaders(), String.format("Host: %s", proxyTarget));
@@ -261,9 +260,6 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
     addResponseForTunnelingSslOverAnHttpProxy();
     server.enqueue(new MockResponse().setBody(sha1(ARTIFACT_CONTENT)));
-
-    addResponseForTunnelingSslOverAnHttpProxy();
-    server.enqueue(new MockResponse().setBody(md5(ARTIFACT_CONTENT)));
 
     server.play();
   }

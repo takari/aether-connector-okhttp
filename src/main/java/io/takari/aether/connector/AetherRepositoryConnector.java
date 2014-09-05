@@ -47,9 +47,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLSocketFactory;
@@ -89,6 +94,7 @@ import org.eclipse.aether.util.ConfigUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Joiner;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Closer;
 
@@ -500,21 +506,11 @@ class AetherRepositoryConnector implements RepositoryConnector {
     // Checksum handling
     //
     private void validateChecksums(File temporaryFileInLocalRepository, File fileInLocalRepository, String uri, TransferResource transferResource) throws Exception {
-
       boolean failOnInvalidOrMissingCheckums = RepositoryPolicy.CHECKSUM_POLICY_FAIL.equals(checksumPolicy);
-
       try {
         Map<String, Object> checksums = ChecksumUtils.calc(temporaryFileInLocalRepository, checksumAlgos.keySet());
-        //
-        // SHA1
-        //
-        if (!verifyChecksum(temporaryFileInLocalRepository, fileInLocalRepository, uri, (String) checksums.get("SHA-1"), ".sha1")) {
-          throw new ChecksumFailureException("Checksum validation failed" + ", no checksums available from the repository");
-        }
-        //
-        // MD5
-        //
-        if (!verifyChecksum(temporaryFileInLocalRepository, fileInLocalRepository, uri, (String) checksums.get("MD5"), ".md5")) {
+
+        if (!verifyChecksums(temporaryFileInLocalRepository, fileInLocalRepository, uri, checksums)) {
           throw new ChecksumFailureException("Checksum validation failed" + ", no checksums available from the repository");
         }
       } catch (Exception e) {
@@ -531,33 +527,39 @@ class AetherRepositoryConnector implements RepositoryConnector {
      * @param temporaryFileInLocalRepository The in-progress name of the resource being downloaded e.g. ${localRepo}/io/tesla/maven/maven-core/3.1.2/aether-90e2b299-3604-4504-b13b-dc147f001c1e-maven-core-3.1.2.jar-in-progress
      * @param fileInLocalRepository The name of the completed name of the resource being downloaded e.g. ${localRepo}/io/tesla/maven/maven-core/3.1.2/maven-core-3.1.2.jar
      * @param uri The URI of the resource in the remote repository e.g. http://repo1.maven.org/maven2/io/tesla/maven/maven-core/3.1.2/maven-core-3.1.2.jar
-     * @param actual The calculated checksum of the file e.g. 724036fb069c47ccc1e27b370f99f6f10069e34a
-     * @param ext The type of the checksum like .sha1 or .md5
+     * @param checksums The calculated checksums of the file e.g. 724036fb069c47ccc1e27b370f99f6f10069e34a
      * @return Whether the checksum file remotely matches the locally calculated checksum
      * @throws ChecksumFailureException
      */
-    private boolean verifyChecksum(File temporaryFileInLocalRepository, File fileInLocalRepository, String uri, String actual, String ext) throws ChecksumFailureException {
+    private boolean verifyChecksums(File temporaryFileInLocalRepository, File fileInLocalRepository, String uri,  Map<String, Object> checksums) throws ChecksumFailureException {
+      for (Map.Entry<String, String> algo : checksumAlgos.entrySet()) {
+        String ext = algo.getValue();
+        String actual = (String) checksums.get(algo.getKey());
+  
+        String checksumUri = uri + ext;
+        // ${localRepo}/io/tesla/maven/maven-core/3.1.2/maven-core-3.1.2.jar + ".sha1"
+        File checksumFileInLocalRepository = new File(temporaryFileInLocalRepository.getParentFile(), fileInLocalRepository.getName() + ext);
+        TransferResource transferResource = new TransferResource(repository.getUrl(), checksumUri, checksumFileInLocalRepository, download.getTrace());
+  
+        try {
+  
+          FileTransfer temporaryChecksumFile = resumableGet(checksumUri, checksumFileInLocalRepository, transferResource, RequestType.GET, false);
+          String expected = ChecksumUtils.read(temporaryChecksumFile.file);
+          if (!expected.equalsIgnoreCase(actual)) {
+            throw new ChecksumFailureException(expected, actual);
+          }
+  
+          rename(temporaryChecksumFile.file, checksumFileInLocalRepository);
 
-      String checksumUri = uri + ext;
-      // ${localRepo}/io/tesla/maven/maven-core/3.1.2/maven-core-3.1.2.jar + ".sha1"
-      File checksumFileInLocalRepository = new File(temporaryFileInLocalRepository.getParentFile(), fileInLocalRepository.getName() + ext);
-      TransferResource transferResource = new TransferResource(repository.getUrl(), checksumUri, checksumFileInLocalRepository, download.getTrace());
-
-      try {
-
-        FileTransfer temporaryChecksumFile = resumableGet(checksumUri, checksumFileInLocalRepository, transferResource, RequestType.GET, false);
-        String expected = ChecksumUtils.read(temporaryChecksumFile.file);
-        if (!expected.equalsIgnoreCase(actual)) {
-          throw new ChecksumFailureException(expected, actual);
+          return true;
+        } catch (ResourceDoesNotExistException e) {
+          // keep trying
+        } catch (Exception e) {
+          throw new ChecksumFailureException(e);
         }
-
-        rename(temporaryChecksumFile.file, checksumFileInLocalRepository);
-
-      } catch (Exception e) {
-        throw new ChecksumFailureException(e);
       }
 
-      return true;
+      return false;
     }
 
     private FileTransfer resumableGet(String uri, File fileInLocalRepository, TransferResource transferResource, RequestType requestType, boolean emitProgressEvent) throws Exception {
@@ -597,6 +599,10 @@ class AetherRepositoryConnector implements RepositoryConnector {
           requestHeaders.put("Range", "bytes=" + temporaryFileInLocalRepository.length() + "-");
           requestHeaders.put("Accept-Encoding", "identity");
           response = aetherClient.get(uri, requestHeaders);
+
+          if (response.getStatusCode() == 416) {
+            response = aetherClient.get(uri);
+          }
         } else {
           response = aetherClient.get(uri);
         }

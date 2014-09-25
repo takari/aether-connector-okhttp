@@ -12,6 +12,7 @@ package io.takari.aether.connector;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
 import javax.net.ssl.SSLSocketFactory;
 
 import org.codehaus.plexus.component.annotations.Component;
@@ -23,7 +24,6 @@ import org.eclipse.aether.spi.io.FileProcessor;
 import org.eclipse.aether.spi.locator.Service;
 import org.eclipse.aether.spi.locator.ServiceLocator;
 import org.eclipse.aether.transfer.NoRepositoryConnectorException;
-import org.eclipse.sisu.Nullable;
 
 /**
  * A repository connector factory that uses OkHttp for the transfers.
@@ -40,9 +40,9 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
   }
   
   @Inject
-  public AetherRepositoryConnectorFactory(FileProcessor fileProcessor, @Nullable SSLSocketFactory sslSocketFactory) {
+  public AetherRepositoryConnectorFactory(FileProcessor fileProcessor, Provider<SSLSocketFactory> sslSocketFactory) {
     this.fileProcessor = fileProcessor;
-    this.sslSocketFactory = sslSocketFactory;
+    this.sslSocketFactory = sslSocketFactory.get();
   }
 
   public float getPriority() {

@@ -85,7 +85,6 @@
       <groupId>org.eclipse.aether</groupId>
       <artifactId>aether-util</artifactId>
       <version>${aetherVersion}</version>
-      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.eclipse.aether</groupId>
@@ -98,7 +97,6 @@
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
       <version>14.0.1</version>
-      <scope>provided</scope>
     </dependency>
     <!-- JSR330 -->
     <dependency>

@@ -98,6 +98,7 @@
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
       <version>18.0</version>
+      <scope>provided</scope>
     </dependency>
     <!-- JSR330 -->
     <dependency>
@@ -135,6 +136,7 @@
       <artifactId>sisu-guice</artifactId>
       <version>3.2.3</version>
       <classifier>no_aop</classifier>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.eclipse.sisu</groupId>

@@ -150,6 +150,10 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     return server.getPort();
   }
 
+  protected String hostname() {
+    return server.getHostName();
+  }
+
   public void testArtifactDownload() throws Exception {
     enqueueServerWithSingleArtifactResponse();
     downloadArtifact();
@@ -454,10 +458,10 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
       RemoteRepository.Builder builder = new RemoteRepository.Builder("repo", "default", url("repo"));
       if (enableProxyWithAuth) {
         Authentication auth = new AuthenticationBuilder().addUsername(PROXY_USERNAME).addPassword(PROXY_PASSWORD).build();
-        Proxy proxy = new Proxy(protocol(), "localhost", port(), auth);
+        Proxy proxy = new Proxy(protocol(), hostname(), port(), auth);
         builder.setProxy(proxy);
       } else if (enableProxy) {
-        Proxy proxy = new Proxy(protocol(), "localhost", port());
+        Proxy proxy = new Proxy(protocol(), hostname(), port());
         builder.setProxy(proxy);
       }
       if (enableAuth) {

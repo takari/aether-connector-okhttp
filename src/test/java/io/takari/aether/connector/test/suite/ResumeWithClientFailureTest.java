@@ -7,11 +7,8 @@
  */
 package io.takari.aether.connector.test.suite;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -25,7 +22,7 @@ import org.eclipse.aether.spi.connector.RepositoryConnector;
 import org.eclipse.aether.transfer.TransferEvent;
 import org.eclipse.aether.transfer.TransferEvent.EventType;
 
-import com.google.common.io.Closeables;
+import com.google.common.io.Files;
 
 public class ResumeWithClientFailureTest extends AetherTestCase {
 
@@ -129,12 +126,6 @@ public class ResumeWithClientFailureTest extends AetherTestCase {
   public static void write(byte[] pattern, File file) throws IOException {
     file.deleteOnExit();
     file.getParentFile().mkdirs();
-    OutputStream out = null;
-    try {
-      out = new BufferedOutputStream(new FileOutputStream(file));
-      out.write(pattern);
-    } finally {
-      Closeables.closeQuietly(out);
-    }
+    Files.asByteSink(file).write(pattern);
   }
 }

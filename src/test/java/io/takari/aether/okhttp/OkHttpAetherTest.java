@@ -31,7 +31,7 @@ import io.takari.aether.connector.test.suite.ResumeWithClientFailureTest;
 import io.takari.aether.connector.test.suite.TimeoutTest;
 import junit.framework.TestSuite;
 
-import org.eclipse.sisu.containers.InjectedTestCase;
+import org.eclipse.sisu.launch.InjectedTestCase;
 
 public class OkHttpAetherTest extends InjectedTestCase {
   

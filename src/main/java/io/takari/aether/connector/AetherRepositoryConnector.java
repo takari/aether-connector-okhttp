@@ -47,14 +47,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLSocketFactory;
@@ -94,8 +89,6 @@ import org.eclipse.aether.util.ConfigUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Joiner;
-import com.google.common.io.ByteStreams;
 import com.google.common.io.Closer;
 
 class AetherRepositoryConnector implements RepositoryConnector {
@@ -774,7 +767,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
       Response response = aetherClient.put(uri + ext, new RetryableSource() {
         @Override
         public void copyTo(OutputStream os) throws IOException {
-          ByteStreams.asByteSource(bytes).copyTo(os);
+          os.write(bytes);
         }
         @Override
         public long length() {

@@ -42,7 +42,7 @@ import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.io.FileProcessor;
 import org.eclipse.aether.transfer.NoRepositoryConnectorException;
 import org.eclipse.aether.util.repository.AuthenticationBuilder;
-import org.eclipse.sisu.containers.InjectedTestCase;
+import org.eclipse.sisu.launch.InjectedTestCase;
 import org.junit.Assert;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.impl.SimpleLoggerFactory;

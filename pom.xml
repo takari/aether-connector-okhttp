@@ -97,7 +97,7 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>14.0.1</version>
+      <version>18.0</version>
     </dependency>
     <!-- JSR330 -->
     <dependency>
@@ -131,9 +131,15 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.sonatype.sisu</groupId>
+      <artifactId>sisu-guice</artifactId>
+      <version>3.2.3</version>
+      <classifier>no_aop</classifier>
+    </dependency>
+    <dependency>
       <groupId>org.eclipse.sisu</groupId>
       <artifactId>org.eclipse.sisu.plexus</artifactId>
-      <version>0.0.0.M2a</version>
+      <version>0.3.0.M1</version>
       <scope>provided</scope>
       <exclusions>
         <exclusion>

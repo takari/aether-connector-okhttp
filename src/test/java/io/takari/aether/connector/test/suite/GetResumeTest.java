@@ -25,7 +25,7 @@ import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.nio.SelectChannelConnector;
-import org.eclipse.sisu.containers.InjectedTestCase;
+import org.eclipse.sisu.launch.InjectedTestCase;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.impl.SimpleLoggerFactory;
 

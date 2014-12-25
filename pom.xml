@@ -8,17 +8,19 @@
     http://www.eclipse.org/legal/epl-v10.html
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>io.takari</groupId>
     <artifactId>takari</artifactId>
-    <version>14</version>
+    <version>15-SNAPSHOT</version>
   </parent>
   <groupId>io.takari.aether</groupId>
   <artifactId>aether-connector-okhttp</artifactId>
   <version>0.15.0-SNAPSHOT</version>
+  <packaging>takari-jar</packaging>
   <name>OkHttp Aether Connector</name>
   <description>A repository connector implementation based on Square's OkHttp.</description>
 
@@ -28,6 +30,7 @@
     <bouncycastle.version>1.47</bouncycastle.version>
     <npn.version>8.1.2.v20120308</npn.version>
     <okHttpVersion>2.1.0</okHttpVersion>
+    <okioVersion>1.0.0</okioVersion>
     <mockwebserver.version>20130201</mockwebserver.version>
     <wagonVersion>2.4</wagonVersion>
     <slf4jVersion>1.7.4</slf4jVersion>
@@ -68,6 +71,11 @@
       <groupId>com.squareup.okhttp</groupId>
       <artifactId>okhttp</artifactId>
       <version>${okHttpVersion}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.okio</groupId>
+      <artifactId>okio</artifactId>
+      <version>${okioVersion}</version>
     </dependency>
     <!-- Aether -->
     <dependency>
@@ -151,6 +159,12 @@
       </exclusions>
     </dependency>
     <dependency>
+      <groupId>org.eclipse.sisu</groupId>
+      <artifactId>org.eclipse.sisu.inject</artifactId>
+      <version>0.3.0.M1</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcprov-jdk15on</artifactId>
       <version>${bouncycastle.version}</version>
@@ -196,30 +210,31 @@
       <version>${okHttpVersion}</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty.orbit</groupId>
+      <artifactId>javax.servlet</artifactId>
+      <version>3.0.0.v201112011016</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-util</artifactId>
+      <version>8.1.9.v20130131</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-server</artifactId>
+      <version>8.1.9.v20130131</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
       <plugin>
-        <groupId>org.sonatype.plugins</groupId>
+        <groupId>org.eclipse.sisu</groupId>
         <artifactId>sisu-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>generate-index</id>
-            <phase>process-classes</phase>
-            <goals>
-              <goal>main-index</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <configuration>
-          <source>1.7</source>
-          <target>1.7</target>
-        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -233,31 +248,4 @@
     </plugins>
   </build>
 
-  <profiles>
-    <profile>
-      <id>java8</id>
-      <activation>
-        <jdk>[1.8,)</jdk>
-      </activation>
-      <build>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-javadoc-plugin</artifactId>
-              <configuration>
-                <!--
-                  | java8 javadoc is more strict and reports fails the build because of unknown references in 
-                  | SslContextFactory and, more importantly, @plexus annotations in OkHttpsWagon.
-                  |
-                  | http://blog.joda.org/2014/02/turning-off-doclint-in-jdk-8-javadoc.html
-                 -->
-                <additionalparam>-Xdoclint:none</additionalparam>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
-    </profile>
-  </profiles>
 </project>

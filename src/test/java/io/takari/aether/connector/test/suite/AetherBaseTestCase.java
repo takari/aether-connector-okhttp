@@ -3,6 +3,9 @@ package io.takari.aether.connector.test.suite;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.Authenticator;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -41,7 +44,18 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
   protected static final String PROXY_USERNAME = "pusername";
   protected static final String PROXY_PASSWORD = "ppassword";
 
-  protected static final SSLContext sslContext = SslContextBuilder.localhost();
+  // ssl-enabled tests require server and client agree on server hostname
+  protected static final String hostname;
+  protected static final SSLContext sslContext;
+  static {
+    try {
+      hostname = InetAddress.getByName(null).getHostName();
+      sslContext = new SslContextBuilder(hostname).build();
+    } catch (UnknownHostException | GeneralSecurityException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   protected static final RecordingHostnameVerifier hostnameVerifier = new RecordingHostnameVerifier();
 
   protected boolean enableSsl;

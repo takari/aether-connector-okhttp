@@ -16,10 +16,8 @@ import io.tesla.webserver.Jetty8WebServer;
 import io.tesla.webserver.WebServer;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.UnknownHostException;
 
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.artifact.DefaultArtifact;
@@ -59,7 +57,6 @@ public abstract class AetherTestCase extends AetherBaseTestCase {
   
   private String url() {
     try {
-      String hostname = InetAddress.getLocalHost().getHostName();
       if (enableProxy || enableProxyWithAuth) {
         URL url = new URL(((Jetty8WebServer) proxyServer).getProtocol(), hostname, proxyServer.getPort(), "");
         return url.toExternalForm();
@@ -68,8 +65,6 @@ public abstract class AetherTestCase extends AetherBaseTestCase {
         return url.toExternalForm();
       }
     } catch (MalformedURLException e) {
-      throw new IllegalArgumentException("Provider was set up with wrong url", e);
-    } catch (UnknownHostException e) {
       throw new IllegalArgumentException("Provider was set up with wrong url", e);
     }
   }

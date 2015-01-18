@@ -141,15 +141,18 @@ public class OkHttpAetherClient implements AetherClient {
         public MediaType contentType() {
           return mediaType;
         }
+        
+        @Override
+        public long contentLength() throws IOException {
+          return source.length();
+        }
       };
 
       Request.Builder builder = builder(uri, null).put(body);
-
+      
       if (source.length() > 0) {
-        builder.header("Content-Length", Long.toString(source.length()));
+        builder.header("Content-Length", String.valueOf(source.length()));
       }
-      // TODO investigate if we want/need to use chunked upload
-      // builder.header("Transfer-Encoding", "chunked");
 
       response = execute(httpClient, builder.build());
     } while (response == null);
@@ -183,6 +186,7 @@ public class OkHttpAetherClient implements AetherClient {
     return Credentials.basic(auth.getUsername(), auth.getPassword());
   }
 
+  @Override
   public void setSSLSocketFactory(SSLSocketFactory sslSocketFactory) {
     httpClient.setSslSocketFactory(sslSocketFactory);
   }

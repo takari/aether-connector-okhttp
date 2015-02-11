@@ -26,6 +26,8 @@ package io.takari.aether.connector;
 // http://zoompf.com/2010/03/performance-tip-for-http-downloads
 // http://stackoverflow.com/questions/6237079/resume-http-file-download-in-java
 
+import com.google.common.base.Throwables;
+import com.google.common.io.Closer;
 import io.takari.aether.client.AetherClient;
 import io.takari.aether.client.AetherClientAuthentication;
 import io.takari.aether.client.AetherClientConfig;
@@ -33,27 +35,6 @@ import io.takari.aether.client.AetherClientProxy;
 import io.takari.aether.client.Response;
 import io.takari.aether.client.RetryableSource;
 import io.takari.aether.okhttp.OkHttpAetherClient;
-
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import javax.net.ssl.SSLSocketFactory;
-
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.RepositorySystemSession;
@@ -71,7 +52,6 @@ import org.eclipse.aether.spi.connector.RepositoryConnector;
 import org.eclipse.aether.spi.connector.Transfer;
 import org.eclipse.aether.spi.connector.layout.RepositoryLayout;
 import org.eclipse.aether.spi.io.FileProcessor;
-//import org.eclipse.aether.spi.log.Logger;
 import org.eclipse.aether.transfer.ArtifactNotFoundException;
 import org.eclipse.aether.transfer.ArtifactTransferException;
 import org.eclipse.aether.transfer.ChecksumFailureException;
@@ -89,12 +69,34 @@ import org.eclipse.aether.util.ConfigUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.io.Closer;
+import javax.net.ssl.SSLSocketFactory;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+//import org.eclipse.aether.spi.log.Logger;
 
 class AetherRepositoryConnector implements RepositoryConnector {
-
   private static final Map<String, String> checksumAlgos;
-  
+
   static {
     LinkedHashMap<String, String> _checksumAlgos = new LinkedHashMap<>();
     _checksumAlgos.put("SHA-1", ".sha1");
@@ -103,11 +105,13 @@ class AetherRepositoryConnector implements RepositoryConnector {
   }
 
   private final Logger logger = LoggerFactory.getLogger(AetherRepositoryConnector.class);
-  
+
   private final RepositoryLayout layout;
   private final RepositorySystemSession session;
   private final FileProcessor fileProcessor;
   private final RemoteRepository repository;
+  private final ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime()
+      .availableProcessors() * 2);
 
   private final AetherClient aetherClient;
 
@@ -206,14 +210,14 @@ class AetherRepositoryConnector implements RepositoryConnector {
     //  <configuration>
     //    <httpHeaders>
     //      <property>
-    //        <name>User-Agent</name>                                                                                                               
-    //        <value>Maven Fu</value>                                                                                                                                                            
-    //      </property>                                                                                                                                                                        
+    //        <name>User-Agent</name>
+    //        <value>Maven Fu</value>
+    //      </property>
     //      <property>
-    //        <name>Custom-Header</name>                                                                                                                                               
-    //        <value>My wonderful header</value>                                                                                                                                                 
-    //      </property>                                                                                                                                                                        
-    //    </httpHeaders>                                                                                                                                                                     
+    //        <name>Custom-Header</name>
+    //        <value>My wonderful header</value>
+    //      </property>
+    //    </httpHeaders>
     //  </configuration>
     //
     if (wagonConfig != null) {
@@ -286,25 +290,39 @@ class AetherRepositoryConnector implements RepositoryConnector {
     artifactDownloads = safe(artifactDownloads);
     metadataDownloads = safe(metadataDownloads);
 
-    CountDownLatch latch = new CountDownLatch(artifactDownloads.size() + metadataDownloads.size());
-
-    Collection<GetTask<?>> tasks = new ArrayList<GetTask<?>>();
+    int total = artifactDownloads.size() + metadataDownloads.size();
+    Collection<Future<?>> futures = new ArrayList<>(total);
+    Collection<GetTask<?>> tasks = new ArrayList<>(total);
 
     for (MetadataDownload download : metadataDownloads) {
       String resource = layout.getLocation(download.getMetadata(), false).getPath();
-      GetTask<?> task = new GetTask<MetadataTransfer>(resource, download.getFile(), download.getChecksumPolicy(), latch, download, METADATA);
+      GetTask<MetadataTransfer> task = new GetTask<>(resource,
+          download.getFile(),
+          download.getChecksumPolicy(),
+          download,
+          METADATA);
       tasks.add(task);
-      task.run();
+      futures.add(executor.submit(task));
     }
 
     for (ArtifactDownload download : artifactDownloads) {
       String resource = layout.getLocation(download.getArtifact(), false).getPath();
-      GetTask<?> task = new GetTask<ArtifactTransfer>(resource, download.isExistenceCheck() ? null : download.getFile(), download.getChecksumPolicy(), latch, download, ARTIFACT);
+      GetTask<ArtifactTransfer> task = new GetTask<>(resource,
+          download.isExistenceCheck() ? null : download.getFile(),
+          download.getChecksumPolicy(),
+          download,
+          ARTIFACT);
       tasks.add(task);
-      task.run();
+      futures.add(executor.submit(task));
     }
 
-    await(latch);
+    for (Future<?> future : futures) {
+      try {
+        future.get();
+      } catch (InterruptedException |ExecutionException e) {
+        Throwables.propagate(e);
+      }
+    }
 
     for (GetTask<?> task : tasks) {
       task.flush();
@@ -392,15 +410,13 @@ class AetherRepositoryConnector implements RepositoryConnector {
     private final String path;
     private final File fileInLocalRepository;
     private final String checksumPolicy;
-    private final LatchGuard latch;
     private volatile Exception exception;
     private final ExceptionWrapper<T> wrapper;
 
-    public GetTask(String path, File fileInLocalRepository, String checksumPolicy, CountDownLatch latch, T download, ExceptionWrapper<T> wrapper) {
+    public GetTask(String path, File fileInLocalRepository, String checksumPolicy, T download, ExceptionWrapper<T> wrapper) {
       this.path = path;
       this.fileInLocalRepository = fileInLocalRepository;
       this.checksumPolicy = checksumPolicy;
-      this.latch = new LatchGuard(latch);
       this.download = download;
       this.wrapper = wrapper;
     }
@@ -446,7 +462,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
           if (!resourceExist(uri)) {
             throw new ResourceDoesNotExistException("Could not find " + uri + " in " + repository.getUrl());
           }
-          latch.countDown();
           return;
         }
 
@@ -473,8 +488,6 @@ class AetherRepositoryConnector implements RepositoryConnector {
           exception = new Exception(t);
         }
         transferFailed(download, newEvent(transferResource, exception, RequestType.GET, EventType.FAILED).build());
-      } finally {
-        latch.countDown();
       }
     }
 
@@ -811,6 +824,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   public void close() {
     // this client implementation is thread-safe
+    executor.shutdown();
   }
 
   private <T> Collection<T> safe(Collection<T> items) {

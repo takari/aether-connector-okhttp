@@ -92,8 +92,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-//import org.eclipse.aether.spi.log.Logger;
-
 class AetherRepositoryConnector implements RepositoryConnector {
   private static final Map<String, String> checksumAlgos;
 

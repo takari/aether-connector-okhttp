@@ -319,7 +319,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
     for (Future<?> future : futures) {
       try {
         future.get();
-      } catch (InterruptedException |ExecutionException e) {
+      } catch (InterruptedException | ExecutionException e) {
         Throwables.propagate(e);
       }
     }

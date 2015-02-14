@@ -10,10 +10,12 @@
  *******************************************************************************/
 package io.takari.aether.connector;
 
+import java.security.NoSuchAlgorithmException;
+
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
-import javax.inject.Provider;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
 import org.eclipse.aether.RepositorySystemSession;
@@ -24,6 +26,7 @@ import org.eclipse.aether.spi.io.FileProcessor;
 import org.eclipse.aether.spi.locator.Service;
 import org.eclipse.aether.spi.locator.ServiceLocator;
 import org.eclipse.aether.transfer.NoRepositoryConnectorException;
+import org.eclipse.sisu.Nullable;
 
 /**
  * A repository connector factory that uses OkHttp for the transfers.
@@ -54,14 +57,19 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
   }
 
   // Default constructor required for the service locator to work with you use this factory outside the confines of Guice.
-  public  AetherRepositoryConnectorFactory() {
+  public  AetherRepositoryConnectorFactory() throws NoSuchAlgorithmException {
     this(null, null);
   }
   
   @Inject
-  public AetherRepositoryConnectorFactory(FileProcessor fileProcessor, Provider<SSLSocketFactory> sslSocketFactory) {
+  public AetherRepositoryConnectorFactory(FileProcessor fileProcessor, @Nullable SSLSocketFactory sslSocketFactory) throws NoSuchAlgorithmException {
     this.fileProcessor = fileProcessor;
-    this.sslSocketFactory = sslSocketFactory.get();
+    
+    // explicitly use jdk-default ssl socket factory if none is provided externally
+    // this is necessary because okhttp default socket factory does not honour
+    // javax.net.ssl.keyStore/trustStore system properties, which are the only way
+    // to use custom ket/trust stores in maven in m2e
+    this.sslSocketFactory = sslSocketFactory != null? sslSocketFactory: SSLContext.getDefault().getSocketFactory();
   }
 
   public float getPriority() {

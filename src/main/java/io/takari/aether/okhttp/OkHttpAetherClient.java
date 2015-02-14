@@ -12,7 +12,6 @@ import io.takari.aether.client.AetherClientConfig;
 import io.takari.aether.client.AetherClientProxy;
 import io.takari.aether.client.Response;
 import io.takari.aether.client.RetryableSource;
-import io.takari.aether.okhttp.ssl.SslContextFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,15 +80,7 @@ public class OkHttpAetherClient implements AetherClient {
     httpClient.setAuthenticator(NOAUTH); // see #authenticate below
     httpClient.setConnectTimeout(config.getConnectionTimeout(), TimeUnit.MILLISECONDS);
     httpClient.setReadTimeout(config.getRequestTimeout(), TimeUnit.MILLISECONDS);
-    if (config.getSslSocketFactory() != null) {
-      httpClient.setSslSocketFactory(config.getSslSocketFactory());
-    } else {
-      // I am not entirely sure this code is necessary. I wonder if okhttp already does all this
-      SSLSocketFactory sslSocketFactory = getDefaultSSLSocketFactory();
-      if (sslSocketFactory != null) {
-        httpClient.setSslSocketFactory(sslSocketFactory);
-      }
-    }
+    httpClient.setSslSocketFactory(config.getSslSocketFactory());
     this.httpClient = httpClient;
   }
 
@@ -200,35 +191,6 @@ public class OkHttpAetherClient implements AetherClient {
       ohp = new java.net.Proxy(java.net.Proxy.Type.HTTP, addr);
     }
     return ohp;
-  }
-
-  private SSLSocketFactory getDefaultSSLSocketFactory() {
-
-    String keyStorePath = System.getProperty("javax.net.ssl.keyStore");
-    String keyStorePassword = System.getProperty("javax.net.ssl.keyStorePassword");
-    String keyStoreType = System.getProperty("javax.net.ssl.keyStoreType");
-    String trustStorePath = System.getProperty("javax.net.ssl.trustStore");
-    String trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword");
-    String trustStoreType = System.getProperty("javax.net.ssl.trustStoreType");
-
-    SslContextFactory scf = new SslContextFactory();
-    if (keyStorePath != null && keyStorePassword != null) {
-      scf.setKeyStorePath(keyStorePath);
-      scf.setKeyStorePassword(keyStorePassword);
-      scf.setKeyStoreType(keyStoreType);
-      if (trustStorePath != null && trustStorePassword != null) {
-        scf.setTrustStore(trustStorePath);
-        scf.setTrustStorePassword(trustStorePassword);
-        scf.setTrustStoreType(trustStoreType);
-      }
-      try {
-        return scf.getSslContext().getSocketFactory();
-      } catch (Exception e) {
-        // do nothing
-      }
-    }
-
-    return null;
   }
 
   private Request.Builder builder(String uri, Map<String, String> requestHeaders)

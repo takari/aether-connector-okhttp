@@ -17,6 +17,7 @@ import java.net.PasswordAuthentication;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -50,6 +51,7 @@ import org.slf4j.impl.SimpleLoggerFactory;
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
 import com.google.inject.Binder;
+import com.squareup.okhttp.Headers;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.OkUrlFactory;
 import com.squareup.okhttp.internal.SslContextBuilder;
@@ -169,12 +171,10 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     enqueueServerWithSingleArtifactResponse();
     downloadArtifact();
 
-    String authorizationHeader = "Authorization: Basic " + CREDENTIALS;
-
     // once challenged, the client is expected to send credentials eagerly
-    assertContainsNoneMatching(server.takeRequest().getHeaders(), "Authorization: .*");
-    assertContains(server.takeRequest().getHeaders(), authorizationHeader);
-    assertContains(server.takeRequest().getHeaders(), authorizationHeader);
+    assertContainsNoneMatching(server.takeRequest().getHeaders(), "Authorization");
+    assertContains(server.takeRequest().getHeaders(), "Authorization", "Basic " + CREDENTIALS);
+    assertContains(server.takeRequest().getHeaders(), "Authorization", "Basic " + CREDENTIALS);
   }
 
   public void testArtifactDownloadWithBasicAuthAndSystemAuthenticator() throws Exception {
@@ -211,7 +211,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     for (int i = 0; i < 2; i++) {
       RecordedRequest request = server.takeRequest();
       assertRequestMatches(request.getRequestLine(), String.format("GET http://%s/repo(.*) HTTP/1.1", proxyTarget));
-      assertContains(request.getHeaders(), String.format("Host: %s", proxyTarget));
+      assertContains(request.getHeaders(), "Host", proxyTarget);
     }
   }
 
@@ -237,11 +237,11 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
       RecordedRequest connect = server.takeRequest();
       assertEquals("Connect line failure on proxy", String.format("CONNECT %s:443 HTTP/1.1", proxyTarget), connect.getRequestLine());
-      assertContains(connect.getHeaders(), String.format("Host: %s", proxyTarget));
+      assertContains(connect.getHeaders(), "Host", proxyTarget);
 
       RecordedRequest get = server.takeRequest();
       assertRequestMatches(get.getRequestLine(), String.format("GET /repo(.*) HTTP/1.1", proxyTarget));
-      assertContains(get.getHeaders(), String.format("Host: %s", proxyTarget));
+      assertContains(get.getHeaders(), "Host", proxyTarget);
       assertEquals(Arrays.asList(String.format("verify %s", proxyTarget)), hostnameVerifier.calls());
     }
   }
@@ -312,16 +312,12 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   // Helper test methods
   //
 
-  private void assertContains(List<String> headers, String header) {
-    assertTrue(headers.toString(), headers.contains(header));
+  private void assertContains(Headers headers, String header, String value) {
+    assertTrue(headers.toString(), headers.values(header).contains(value));
   }
 
-  private void assertContainsNoneMatching(List<String> headers, String pattern) {
-    for (String header : headers) {
-      if (header.matches(pattern)) {
-        fail("Header " + header + " matches " + pattern);
-      }
-    }
+  private void assertContainsNoneMatching(Headers headers, String header) {
+    assertTrue( headers.values(header).isEmpty());
   }
 
   private void assertRequestMatches(String request, String pattern) {
@@ -393,11 +389,11 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     
     RecordedRequest connect1 = server.takeRequest();
     assertEquals("GET http://server.com/foo HTTP/1.1", connect1.getRequestLine());
-    assertContainsNoneMatching(connect1.getHeaders(), "Proxy\\-Authorization.*");
+    assertContainsNoneMatching(connect1.getHeaders(), "Proxy-Authorization");
 
     RecordedRequest connect2 = server.takeRequest();
     assertEquals("GET http://server.com/foo HTTP/1.1", connect2.getRequestLine());
-    assertContains(connect2.getHeaders(), "Proxy-Authorization: Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);        
+    assertContains(connect2.getHeaders(), "Proxy-Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);        
   }
   
   //
@@ -420,15 +416,15 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
     RecordedRequest connect1 = server.takeRequest();
     assertEquals("CONNECT android.com:443 HTTP/1.1", connect1.getRequestLine());
-    assertContainsNoneMatching(connect1.getHeaders(), "Proxy\\-Authorization.*");
+    assertContainsNoneMatching(connect1.getHeaders(), "Proxy-Authorization");
     
     RecordedRequest connect2 = server.takeRequest();
     assertEquals("CONNECT android.com:443 HTTP/1.1", connect2.getRequestLine());
-    assertContains(connect2.getHeaders(), "Proxy-Authorization: Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
+    assertContains(connect2.getHeaders(), "Proxy-Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
 
     RecordedRequest get = server.takeRequest();
     assertEquals("GET /foo HTTP/1.1", get.getRequestLine());
-    assertContainsNoneMatching(get.getHeaders(), "Proxy\\-Authorization.*");
+    assertContainsNoneMatching(get.getHeaders(), "Proxy-Authorization");
   }
 
   //

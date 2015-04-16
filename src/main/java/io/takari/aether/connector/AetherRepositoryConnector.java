@@ -108,7 +108,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
   private final RepositorySystemSession session;
   private final FileProcessor fileProcessor;
   private final RemoteRepository repository;
-  private final ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime()
+  private static final ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime()
       .availableProcessors() * 2);
 
   private final AetherClient aetherClient;
@@ -822,7 +822,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
   public void close() {
     // this client implementation is thread-safe
-    executor.shutdown();
+    // executor.shutdown();
   }
 
   private <T> Collection<T> safe(Collection<T> items) {

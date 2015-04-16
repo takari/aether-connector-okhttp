@@ -8,8 +8,7 @@
     http://www.eclipse.org/legal/epl-v10.html
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -19,7 +18,7 @@
   </parent>
   <groupId>io.takari.aether</groupId>
   <artifactId>aether-connector-okhttp</artifactId>
-  <version>1.0.1-alpha-SNAPSHOT</version>
+  <version>1.0.1-alpha</version>
   <packaging>takari-jar</packaging>
   <name>OkHttp Aether Connector</name>
   <description>A repository connector implementation based on Square's OkHttp.</description>
@@ -241,4 +240,8 @@
     </plugins>
   </build>
 
+
+  <scm>
+    <tag>aether-connector-okhttp-1.0.1-alpha</tag>
+  </scm>
 </project>

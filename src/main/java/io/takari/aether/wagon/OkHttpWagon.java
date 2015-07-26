@@ -56,6 +56,28 @@ public class OkHttpWagon extends StreamWagon {
     String url = buildUrl(resource.getName());
     try {
       Response response = client.get(url);
+
+      final int statusCode = response.getStatusCode();
+      switch (statusCode) {
+      case HttpURLConnection.HTTP_OK:
+        break;
+
+      case HttpURLConnection.HTTP_FORBIDDEN:
+        throw new AuthorizationException("Access denied to: " + url);
+
+      case HttpURLConnection.HTTP_NOT_FOUND:
+        throw new ResourceDoesNotExistException("Resource not found: " + url);
+
+      case HttpURLConnection.HTTP_UNAUTHORIZED:
+        throw new AuthorizationException("Unauthorized to access: " + url);
+
+      case HttpURLConnection.HTTP_PROXY_AUTH:
+        throw new AuthorizationException("Proxy authentication required to access: " + url);
+
+      default:
+        throw new TransferFailedException("Failed to transfer file: " + url + ". Return code is: " + statusCode);
+      }
+      
       inputData.setInputStream(response.getInputStream());
     } catch (IOException e) {
       StringBuilder message = new StringBuilder("Error transferring file: ");
@@ -254,11 +276,11 @@ public class OkHttpWagon extends StreamWagon {
   @Override
   public boolean resourceExists(String resourceName) throws TransferFailedException, AuthorizationException {
 
+    String url = buildUrl(resourceName);
     try {
-      String url = buildUrl(resourceName);
       Response response = client.head(url);
-      int statusCode = response.getStatusCode();
 
+      final int statusCode = response.getStatusCode();
       switch (statusCode) {
       case HttpURLConnection.HTTP_OK:
         return true;
@@ -270,10 +292,13 @@ public class OkHttpWagon extends StreamWagon {
         return false;
 
       case HttpURLConnection.HTTP_UNAUTHORIZED:
-        throw new AuthorizationException("Access denied to: " + url);
+        throw new AuthorizationException("Unauthorized to access: " + url);
+
+      case HttpURLConnection.HTTP_PROXY_AUTH:
+        throw new AuthorizationException("Proxy authentication required to access: " + url);
 
       default:
-        throw new TransferFailedException("Failed to look for file: " + buildUrl(resourceName) + ". Return code is: " + statusCode);
+        throw new TransferFailedException("Failed to look for file: " + url + ". Return code is: " + statusCode);
       }
     } catch (IOException e) {
       throw new TransferFailedException("Error transferring file: " + e.getMessage(), e);

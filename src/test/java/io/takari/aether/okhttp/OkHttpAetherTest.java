@@ -31,6 +31,7 @@ import io.takari.aether.connector.test.suite.PutSslTest;
 import io.takari.aether.connector.test.suite.PutTest;
 import io.takari.aether.connector.test.suite.ResumeWithClientFailureTest;
 import io.takari.aether.connector.test.suite.TimeoutTest;
+import io.takari.aether.connector.test.suite.WagonTest;
 import junit.framework.TestSuite;
 
 import org.eclipse.sisu.launch.InjectedTestCase;
@@ -89,6 +90,9 @@ public class OkHttpAetherTest extends InjectedTestCase {
     
     // This will not run on Hudson
     suite.addTestSuite(GetDownloadWhoseSizeExceedsMaxHeapSizeTest.class);
+    
+    // Wagon
+    suite.addTestSuite(WagonTest.class);
     
     return suite;
   }

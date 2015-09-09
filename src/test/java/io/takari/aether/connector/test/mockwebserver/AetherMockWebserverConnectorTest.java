@@ -17,10 +17,8 @@ import java.net.PasswordAuthentication;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.inject.Inject;
@@ -126,7 +124,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     if (enableProxy) {
       url = String.format("%s://%s/", protocol(), proxyTarget) + path;
     } else {
-      url = server.getUrl("/" + path).toExternalForm();
+      url = server.url("/" + path).toString();
     }
     return url;
   }
@@ -265,7 +263,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     addResponseForTunnelingSslOverAnHttpProxy();
     server.enqueue(new MockResponse().setBody(sha1(ARTIFACT_CONTENT)));
 
-    server.play();
+    server.start();
   }
 
   private void addResponseForTunnelingSslOverAnHttpProxy() {
@@ -379,7 +377,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     Authenticator.setDefault(new RecordingAuthenticator());
     server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
     server.enqueue(new MockResponse().setBody("A"));
-    server.play();
+    server.start();
     client.client().setProxy(server.toProxyAddress());
     
     URL url = new URL("http://server.com/foo");
@@ -405,7 +403,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.UPGRADE_TO_SSL_AT_END).clearHeaders());
     server.enqueue(new MockResponse().setBody("A"));
-    server.play();
+    server.start();
     client.client().setProxy(server.toProxyAddress());
 
     URL url = new URL("https://android.com/foo");

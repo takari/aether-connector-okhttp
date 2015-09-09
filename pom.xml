@@ -28,12 +28,11 @@
     <testHarnessVersion>0.5.1</testHarnessVersion>
     <bouncycastle.version>1.47</bouncycastle.version>
     <npn.version>8.1.2.v20120308</npn.version>
-    <okHttpVersion>2.4.0</okHttpVersion>
-    <okioVersion>1.4.0</okioVersion>
-    <mockwebserver.version>20130201</mockwebserver.version>
+    <okHttpVersion>2.5.0</okHttpVersion>
+    <okioVersion>1.6.0</okioVersion>
     <wagonVersion>2.4</wagonVersion>
     <slf4jVersion>1.7.4</slf4jVersion>
-    <junitVersion>4.8.1</junitVersion>
+    <junitVersion>4.12</junitVersion>
   </properties>
 
   <scm>
@@ -48,7 +47,7 @@
       <dependency>
         <groupId>junit</groupId>
         <artifactId>junit</artifactId>
-        <version>4.8.1</version>
+        <version>${junitVersion}</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -175,14 +174,6 @@
       <version>${npn.version}</version>
       <scope>test</scope>
     </dependency>
-    <!-- 
-    <dependency>
-      <groupId>com.google.mockwebserver</groupId>
-      <artifactId>mockwebserver</artifactId>
-      <version>${mockwebserver.version}</version>
-      <scope>test</scope>
-    </dependency>
-    -->
     <dependency>
       <groupId>org.eclipse.aether</groupId>
       <artifactId>aether-test-util</artifactId>

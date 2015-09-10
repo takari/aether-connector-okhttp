@@ -5,8 +5,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.eclipse.aether.spi.connector.transport.AbstractTransporter;
 import org.eclipse.aether.spi.connector.transport.GetTask;
@@ -24,6 +22,10 @@ class AetherTransporter extends AbstractTransporter {
 
   private final HttpUrl baseurl;
   private final OkHttpAetherClient aetherClient;
+
+  private static interface Retriable {
+    public void run() throws Exception;
+  }
 
   public AetherTransporter(String baseurl, OkHttpAetherClient aetherClient) {
     this.aetherClient = aetherClient;
@@ -43,33 +45,41 @@ class AetherTransporter extends AbstractTransporter {
     return ERROR_OTHER;
   }
 
-  @Override
-  protected void implPeek(PeekTask task) throws Exception {
-    String url = buildUrl(task.getLocation());
-    Response response = aetherClient.head(url);
-    handleResponseCode(url, response);
+  private void retry(Retriable retriable) throws Exception {
+    Exception cause = null;
+    for (int retryCount = 0; retryCount < 3; retryCount++) {
+      try {
+        retriable.run();
+        return;
+      } catch (IOException e) {
+        if (cause == null) {
+          cause = e;
+        }
+      }
+    }
+    throw cause;
   }
 
   @Override
-  protected void implGet(GetTask task) throws Exception {
+  protected void implPeek(PeekTask task) throws Exception {
     String url = buildUrl(task.getLocation());
+    retry(() -> {
+      Response response = aetherClient.head(url);
+      handleResponseCode(url, response);
+    });
+  }
 
-    boolean resume = task.getResumeOffset() > 0;
-
-    Map<String, String> headers = new HashMap<>();
-    if (resume) {
-      headers.put("Range", "bytes=" + task.getResumeOffset() + "-");
-      headers.put("Accept-Encoding", "identity");
-    }
-
-    Response response = aetherClient.get(url, headers);
-
-    handleResponseCode(url, response);
-
-    try (InputStream in = response.getInputStream()) {
-      long length = getContentLength(response);
-      utilGet(task, in, false, length, resume);
-    }
+  @Override
+  protected void implGet(final GetTask task) throws Exception {
+    String url = buildUrl(task.getLocation());
+    retry(() -> {
+      Response response = aetherClient.get(url);
+      handleResponseCode(url, response);
+      try (InputStream in = response.getInputStream()) {
+        long length = getContentLength(response);
+        utilGet(task, in, false, length, false);
+      }
+    });
   }
 
   private long getContentLength(Response response) {
@@ -93,23 +103,27 @@ class AetherTransporter extends AbstractTransporter {
       }
     };
 
-    try {
-      Response response = aetherClient.put(url, new RetryableSource() {
-        @Override
-        public long length() {
-          return task.getDataLength();
-        }
+    RetryableSource rs = new RetryableSource() {
+      @Override
+      public long length() {
+        return task.getDataLength();
+      }
 
-        @Override
-        public void copyTo(OutputStream os) throws IOException {
-          try {
-            utilPut(task, os, false);
-          } catch (TransferCancelledException e) {
-            throw new WrappedTransderException(e);
-          }
+      @Override
+      public void copyTo(OutputStream os) throws IOException {
+        try {
+          utilPut(task, os, false);
+        } catch (TransferCancelledException e) {
+          throw new WrappedTransderException(e);
         }
+      }
+    };
+
+    try {
+      retry(() -> {
+        Response response = aetherClient.put(url, rs);
+        handleResponseCode(url, response);
       });
-      handleResponseCode(url, response);
     } catch (WrappedTransderException e) {
       throw (TransferCancelledException) e.getCause();
     }

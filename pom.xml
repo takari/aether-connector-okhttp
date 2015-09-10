@@ -243,7 +243,10 @@
         <plugin>
           <groupId>io.takari.maven.plugins</groupId>
           <artifactId>takari-lifecycle-plugin</artifactId>
-          <version>1.11.6</version>
+          <version>1.11.10</version>
+          <configuration>
+            <source>1.8</source>
+          </configuration>
         </plugin>
       </plugins>
     </pluginManagement>

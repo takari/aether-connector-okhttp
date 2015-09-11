@@ -32,6 +32,24 @@ public class AetherTransporterFactory implements TransporterFactory {
 
   private final SSLSocketFactory sslSocketFactory;
 
+  private static final class ConnectorKey {
+    private final RemoteRepository repository;
+
+    public ConnectorKey(RemoteRepository repository) {
+      this.repository = repository;
+    }
+
+    @Override
+    public int hashCode() {
+      return repository.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      return obj instanceof ConnectorKey && repository.equals(((ConnectorKey) obj).repository);
+    }
+  }
+
   @Inject
   public AetherTransporterFactory(@Nullable SSLSocketFactory sslSocketFactory)
       throws NoSuchAlgorithmException {
@@ -47,8 +65,15 @@ public class AetherTransporterFactory implements TransporterFactory {
   @Override
   public Transporter newInstance(RepositorySystemSession session, RemoteRepository repository)
       throws NoTransporterException {
-    return new AetherTransporter(repository.getUrl(),
-        newAetherClient(repository, session, sslSocketFactory));
+    final ConnectorKey key = new ConnectorKey(repository);
+    OkHttpAetherClient aetherClient = (OkHttpAetherClient) session.getData().get(key);
+    if (aetherClient == null) {
+      aetherClient = newAetherClient(repository, session, sslSocketFactory);
+      if (!session.getData().set(key, null, aetherClient)) {
+        aetherClient = (OkHttpAetherClient) session.getData().get(key);
+      }
+    }
+    return new AetherTransporter(repository.getUrl(), aetherClient);
   }
 
   @Override

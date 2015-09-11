@@ -6,13 +6,6 @@
  */
 package io.takari.aether.okhttp;
 
-import io.takari.aether.client.AetherClient;
-import io.takari.aether.client.AetherClientAuthentication;
-import io.takari.aether.client.AetherClientConfig;
-import io.takari.aether.client.AetherClientProxy;
-import io.takari.aether.client.Response;
-import io.takari.aether.client.RetryableSource;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -23,11 +16,10 @@ import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLSocketFactory;
-
-import okio.BufferedSink;
 
 import com.squareup.okhttp.Authenticator;
 import com.squareup.okhttp.Credentials;
@@ -36,6 +28,14 @@ import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.Request;
 import com.squareup.okhttp.RequestBody;
 import com.squareup.okhttp.internal.tls.OkHostnameVerifier;
+
+import io.takari.aether.client.AetherClient;
+import io.takari.aether.client.AetherClientAuthentication;
+import io.takari.aether.client.AetherClientConfig;
+import io.takari.aether.client.AetherClientProxy;
+import io.takari.aether.client.Response;
+import io.takari.aether.client.RetryableSource;
+import okio.BufferedSink;
 
 public class OkHttpAetherClient implements AetherClient {
 
@@ -53,16 +53,16 @@ public class OkHttpAetherClient implements AetherClient {
     }
   };
 
-  private Map<String, String> headers;
-  private AetherClientConfig config;
-  private OkHttpClient httpClient;
+  private final Map<String, String> headers;
+  private final AetherClientConfig config;
+  private final OkHttpClient httpClient;
 
   public OkHttpAetherClient(AetherClientConfig config) {
     this.config = config;
 
     // headers are modified during http auth handshake
     // make a copy to avoid cross-talk among client instances
-    headers = new HashMap<String, String>();
+    headers = new ConcurrentHashMap<>();
     if (config.getHeaders() != null) {
       headers.putAll(config.getHeaders());
     }
@@ -86,34 +86,42 @@ public class OkHttpAetherClient implements AetherClient {
 
   @Override
   public Response head(String uri) throws IOException {
+    Map<String, String> _headers = new HashMap<>(this.headers);
     Response response;
     do {
-      response = execute(httpClient, builder(uri, null).head().build());
+      response = execute(httpClient, builder(uri, _headers, null).head().build(), _headers);
     } while (response == null);
+    this.headers.putAll(_headers);
     return response;
   }
 
   @Override
   public Response get(String uri) throws IOException {
+    Map<String, String> _headers = new HashMap<>(this.headers);
     Response response;
     do {
-      response = execute(httpClient, builder(uri, null).get().build());
+      response = execute(httpClient, builder(uri, _headers, null).get().build(), _headers);
     } while (response == null);
+    this.headers.putAll(_headers);
     return response;
   }
 
   @Override
   public Response get(String uri, Map<String, String> requestHeaders) throws IOException {
+    Map<String, String> _headers = new HashMap<>(this.headers);
     Response response;
     do {
-      response = execute(httpClient, builder(uri, requestHeaders).get().build());
+      response =
+          execute(httpClient, builder(uri, _headers, requestHeaders).get().build(), _headers);
     } while (response == null);
+    this.headers.putAll(_headers);
     return response;
   }
 
   @Override
   // i need the response
   public Response put(String uri, final RetryableSource source) throws IOException {
+    Map<String, String> _headers = new HashMap<>(this.headers);
     Response response;
     do {
       // disable response caching
@@ -132,25 +140,27 @@ public class OkHttpAetherClient implements AetherClient {
         public MediaType contentType() {
           return mediaType;
         }
-        
+
         @Override
         public long contentLength() throws IOException {
           return source.length();
         }
       };
 
-      Request.Builder builder = builder(uri, null).put(body);
-      
+      Request.Builder builder = builder(uri, _headers, null).put(body);
+
       if (source.length() > 0) {
         builder.header("Content-Length", String.valueOf(source.length()));
       }
 
-      response = execute(httpClient, builder.build());
+      response = execute(httpClient, builder.build(), _headers);
     } while (response == null);
+    this.headers.putAll(_headers);
     return response;
   }
 
-  private Response execute(OkHttpClient httpClient, Request request) throws IOException {
+  private Response execute(OkHttpClient httpClient, Request request, Map<String, String> _headers)
+      throws IOException {
     com.squareup.okhttp.Response response = httpClient.newCall(request).execute();
     switch (response.code()) {
       case HttpURLConnection.HTTP_PROXY_AUTH:
@@ -158,14 +168,14 @@ public class OkHttpAetherClient implements AetherClient {
           throw new ProtocolException("Received HTTP_PROXY_AUTH (407) code while not using proxy");
         }
         if (config.getProxy().getAuthentication() != null
-            && !headers.containsKey("Proxy-Authorization")) {
-          headers.put("Proxy-Authorization", toHeaderValue(config.getProxy().getAuthentication()));
+            && !_headers.containsKey("Proxy-Authorization")) {
+          _headers.put("Proxy-Authorization", toHeaderValue(config.getProxy().getAuthentication()));
           return null; // retry
         }
         break;
       case HttpURLConnection.HTTP_UNAUTHORIZED:
-        if (config.getAuthentication() != null && !headers.containsKey("Authorization")) {
-          headers.put("Authorization", toHeaderValue(config.getAuthentication()));
+        if (config.getAuthentication() != null && !_headers.containsKey("Authorization")) {
+          _headers.put("Authorization", toHeaderValue(config.getAuthentication()));
           return null; // retry
         }
         break;
@@ -193,8 +203,8 @@ public class OkHttpAetherClient implements AetherClient {
     return ohp;
   }
 
-  private Request.Builder builder(String uri, Map<String, String> requestHeaders)
-      throws IOException {
+  private Request.Builder builder(String uri, Map<String, String> headers,
+      Map<String, String> requestHeaders) throws IOException {
     Request.Builder builder = new Request.Builder().url(uri);
 
     // Headers

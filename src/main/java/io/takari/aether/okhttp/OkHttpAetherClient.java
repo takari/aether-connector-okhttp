@@ -151,18 +151,18 @@ public class OkHttpAetherClient implements AetherClient {
   }
 
   private Response execute(OkHttpClient httpClient, Request request) throws IOException {
-	com.squareup.okhttp.Response response = null;
-	int code;
-	try {
-		response = httpClient.newCall(request).execute();
-		code = response.code();
-	} catch (IOException e) {
-		if ("Failed to authenticate with proxy".equals(e.getMessage()))
-			code = HttpURLConnection.HTTP_PROXY_AUTH;
-		else
-			throw e;
-	}
-	switch (code) {
+    com.squareup.okhttp.Response response = null;
+    int code;
+    try {
+      response = httpClient.newCall(request).execute();
+      code = response.code();
+    } catch (IOException e) {
+      if ("Failed to authenticate with proxy".equals(e.getMessage()))
+        code = HttpURLConnection.HTTP_PROXY_AUTH;
+      else
+        throw e;
+    }
+    switch (code) {
       case HttpURLConnection.HTTP_PROXY_AUTH:
         if (config.getProxy() == null) {
           throw new ProtocolException("Received HTTP_PROXY_AUTH (407) code while not using proxy");

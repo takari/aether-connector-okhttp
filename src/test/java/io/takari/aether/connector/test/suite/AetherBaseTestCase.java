@@ -66,6 +66,8 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
   protected String proxyTarget = "repo1.maven.org";
 
   protected abstract int port();
+  
+  protected abstract int proxyPort();
 
   protected abstract String url(String path);
 
@@ -130,7 +132,7 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
         if (enableProxyWithAuth) {
           auth = new AuthenticationBuilder().addUsername(PROXY_USERNAME).addPassword(PROXY_PASSWORD).build();
         }
-        proxy = new Proxy(protocol(), "localhost", port(), auth);
+        proxy = new Proxy(protocol(), "localhost", proxyPort(), auth);
         builder.setProxy(proxy);
       }
       repository = builder.build();

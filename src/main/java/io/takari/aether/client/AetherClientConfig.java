@@ -9,7 +9,6 @@ package io.takari.aether.client;
 
 import java.util.Map;
 
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
 public class AetherClientConfig {

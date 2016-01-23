@@ -17,8 +17,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
-import java.net.ProtocolException;
 import java.net.Proxy;
+import java.net.Proxy.Type;
 import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.List;
@@ -39,11 +39,24 @@ import com.squareup.okhttp.internal.tls.OkHostnameVerifier;
 
 public class OkHttpAetherClient implements AetherClient {
 
-  private static final Authenticator NOAUTH = new Authenticator() {
+  private final Authenticator PROXY_AUTH = new Authenticator() {
     @Override
     public Request authenticateProxy(Proxy proxy, com.squareup.okhttp.Response response)
         throws IOException {
-      return null;
+        Request req = response.request();
+        if(req.header("Proxy-Authorization") == null && config.getProxy() != null && 
+            config.getProxy().getAuthentication() != null) {
+          String value = toHeaderValue(config.getProxy().getAuthentication());
+          
+          boolean tunneled = req.isHttps() && proxy.type() == Type.HTTP;
+          if(!tunneled) {
+            // start including proxy-auth on each request
+            headers.put("Proxy-Authorization", value);
+          }
+          
+          return req.newBuilder().header("Proxy-Authorization", value).build();
+        }
+        return null;
     }
 
     @Override
@@ -77,7 +90,7 @@ public class OkHttpAetherClient implements AetherClient {
     OkHttpClient httpClient = new OkHttpClient();
     httpClient.setProxy(getProxy(config.getProxy()));
     httpClient.setHostnameVerifier(OkHostnameVerifier.INSTANCE);
-    httpClient.setAuthenticator(NOAUTH); // see #authenticate below
+    httpClient.setAuthenticator(PROXY_AUTH); // see #authenticate below
     httpClient.setConnectTimeout(config.getConnectionTimeout(), TimeUnit.MILLISECONDS);
     httpClient.setReadTimeout(config.getRequestTimeout(), TimeUnit.MILLISECONDS);
     httpClient.setSslSocketFactory(config.getSslSocketFactory());
@@ -153,16 +166,6 @@ public class OkHttpAetherClient implements AetherClient {
   private Response execute(OkHttpClient httpClient, Request request) throws IOException {
     com.squareup.okhttp.Response response = httpClient.newCall(request).execute();
     switch (response.code()) {
-      case HttpURLConnection.HTTP_PROXY_AUTH:
-        if (config.getProxy() == null) {
-          throw new ProtocolException("Received HTTP_PROXY_AUTH (407) code while not using proxy");
-        }
-        if (config.getProxy().getAuthentication() != null
-            && !headers.containsKey("Proxy-Authorization")) {
-          headers.put("Proxy-Authorization", toHeaderValue(config.getProxy().getAuthentication()));
-          return null; // retry
-        }
-        break;
       case HttpURLConnection.HTTP_UNAUTHORIZED:
         if (config.getAuthentication() != null && !headers.containsKey("Authorization")) {
           headers.put("Authorization", toHeaderValue(config.getAuthentication()));

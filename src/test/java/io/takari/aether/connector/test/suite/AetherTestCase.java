@@ -57,13 +57,8 @@ public abstract class AetherTestCase extends AetherBaseTestCase {
   
   private String url() {
     try {
-      if (enableProxy || enableProxyWithAuth) {
-        URL url = new URL(((Jetty8WebServer) proxyServer).getProtocol(), hostname, proxyServer.getPort(), "");
-        return url.toExternalForm();
-      } else {
-        URL url = new URL(((Jetty8WebServer) server).getProtocol(), hostname, server.getPort(), "");
-        return url.toExternalForm();
-      }
+      URL url = new URL(((Jetty8WebServer) server).getProtocol(), hostname, server.getPort(), "");
+      return url.toExternalForm();
     } catch (MalformedURLException e) {
       throw new IllegalArgumentException("Provider was set up with wrong url", e);
     }
@@ -71,6 +66,10 @@ public abstract class AetherTestCase extends AetherBaseTestCase {
 
   protected int port() {
     return server.getPort();
+  }
+  
+  protected int proxyPort() {
+    return proxyServer.getPort();
   }
 
   public WebServer provider() {
@@ -114,6 +113,10 @@ public abstract class AetherTestCase extends AetherBaseTestCase {
     if (enableProxy || enableProxyWithAuth) {
       proxyServer = new Jetty8WebServer();
       proxyServer.enableProxy();
+      if(enableProxyWithAuth) {
+        proxyServer.addAuthentication("/*", "BASIC");
+        proxyServer.addUser(PROXY_USERNAME, PROXY_PASSWORD);
+      }
       proxyServer.start();
     }
 

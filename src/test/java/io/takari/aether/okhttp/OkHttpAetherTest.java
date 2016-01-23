@@ -13,7 +13,9 @@ import io.takari.aether.connector.test.suite.GetAuthSslTest;
 import io.takari.aether.connector.test.suite.GetAuthTest;
 import io.takari.aether.connector.test.suite.GetAuthWithNonAsciiCredentialsTest;
 import io.takari.aether.connector.test.suite.GetDownloadWhoseSizeExceedsMaxHeapSizeTest;
+import io.takari.aether.connector.test.suite.GetProxyAuthSslTest;
 import io.takari.aether.connector.test.suite.GetProxyAuthTest;
+import io.takari.aether.connector.test.suite.GetProxySslTest;
 import io.takari.aether.connector.test.suite.GetProxyTest;
 import io.takari.aether.connector.test.suite.GetRedirectTest;
 import io.takari.aether.connector.test.suite.GetResumeTest;
@@ -56,11 +58,9 @@ public class OkHttpAetherTest extends InjectedTestCase {
     //TODO suite.addTestSuite(GetAuthSslCertTest.class);
     suite.addTestSuite(GetRedirectTest.class);
     suite.addTestSuite(GetProxyTest.class);
-    //TODO SSL and Proxies aren't setup correctly
-    //suite.addTestSuite(GetProxySslTest.class);    
+    suite.addTestSuite(GetProxySslTest.class);    
     suite.addTestSuite(GetProxyAuthTest.class);
-    //TODO SSL and Proxies aren't setup correctly
-    //TODO suite.addTestSuite(GetProxyAuthSslTest.class);
+    suite.addTestSuite(GetProxyAuthSslTest.class);
     suite.addTestSuite(GetAuthWithNonAsciiCredentialsTest.class);
     suite.addTestSuite(GetResumeTest.class);
     suite.addTestSuite(ResumeWithClientFailureTest.class);    

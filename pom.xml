@@ -33,6 +33,7 @@
     <wagonVersion>2.4</wagonVersion>
     <slf4jVersion>1.7.4</slf4jVersion>
     <junitVersion>4.12</junitVersion>
+    <provisioWebserverVersion>0.0.4-SNAPSHOT</provisioWebserverVersion>
   </properties>
 
   <scm>
@@ -182,8 +183,14 @@
     </dependency>
     <dependency>
       <groupId>io.provis</groupId>
+      <artifactId>provisio-webserver-api</artifactId>
+      <version>${provisioWebserverVersion}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.provis</groupId>
       <artifactId>provisio-webserver-jetty8</artifactId>
-      <version>0.0.2</version>
+      <version>${provisioWebserverVersion}</version>
       <scope>test</scope>
     </dependency>
     <!-- Changes for OkHttp 1.5 -->

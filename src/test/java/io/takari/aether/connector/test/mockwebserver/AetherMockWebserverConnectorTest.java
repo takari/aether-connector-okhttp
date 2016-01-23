@@ -11,6 +11,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
 import java.net.Authenticator;
 import java.net.HttpURLConnection;
 import java.net.PasswordAuthentication;
@@ -57,6 +58,12 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import com.squareup.okhttp.mockwebserver.SocketPolicy;
+
+import io.takari.aether.client.AetherClientAuthentication;
+import io.takari.aether.client.AetherClientConfig;
+import io.takari.aether.client.AetherClientProxy;
+import io.takari.aether.client.Response;
+import io.takari.aether.okhttp.OkHttpAetherClient;
 
 //
 // 6 cases: 
@@ -423,6 +430,112 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     RecordedRequest get = server.takeRequest();
     assertEquals("GET /foo HTTP/1.1", get.getRequestLine());
     assertContainsNoneMatching(get.getHeaders(), "Proxy-Authorization");
+  }
+  
+  public void testAetherClientProxyAuthHeaders() throws Exception {
+    server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
+    server.enqueue(new MockResponse().setResponseCode(401).addHeader("WWW-Authenticate: Basic realm=\"localhost\""));
+    server.enqueue(new MockResponse().setBody("A"));
+    server.enqueue(new MockResponse().setBody("B"));
+    server.start();
+    
+    AetherClientConfig config = new AetherClientConfig();
+    AetherClientAuthentication auth = new AetherClientAuthentication("username", "password");
+    AetherClientProxy proxy = new AetherClientProxy();
+    proxy.setAuthentication(auth);
+    proxy.setHost(server.getHostName());
+    proxy.setPort(server.getPort());
+    config.setUserAgent("Test");
+    config.setAuthentication(auth);
+    config.setProxy(proxy);
+    
+    OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
+    
+    Response res = aetherClient.get("http://android.com/foo");
+    assertEquals("A", readAscii(res.getInputStream(), Integer.MAX_VALUE));
+
+    res = aetherClient.get("http://android.com/foo2");
+    assertEquals("B", readAscii(res.getInputStream(), Integer.MAX_VALUE));
+    
+    RecordedRequest connect1 = server.takeRequest();
+    assertEquals("GET http://android.com/foo HTTP/1.1", connect1.getRequestLine());
+    assertContainsNoneMatching(connect1.getHeaders(), "Proxy-Authorization");
+    assertContainsNoneMatching(connect1.getHeaders(), "Authorization");
+    
+    RecordedRequest connect2 = server.takeRequest();
+    assertEquals("GET http://android.com/foo HTTP/1.1", connect2.getRequestLine());
+    assertContains(connect2.getHeaders(), "Proxy-Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
+    assertContainsNoneMatching(connect2.getHeaders(), "Authorization");
+
+    RecordedRequest get = server.takeRequest();
+    assertEquals("GET http://android.com/foo HTTP/1.1", get.getRequestLine());
+    assertContains(get.getHeaders(), "Proxy-Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
+    assertContains(get.getHeaders(), "Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
+    
+    RecordedRequest get2 = server.takeRequest();
+    assertEquals("GET http://android.com/foo2 HTTP/1.1", get2.getRequestLine());
+    assertContains(get2.getHeaders(), "Proxy-Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
+    assertContains(get2.getHeaders(), "Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
+    
+  }
+  
+  public void testAetherClientSSLProxyAuthHeaders() throws Exception {
+    server.useHttps(sslContext.getSocketFactory(), true);
+    server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
+    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.UPGRADE_TO_SSL_AT_END).clearHeaders());
+    server.enqueue(new MockResponse().setResponseCode(401).addHeader("WWW-Authenticate: Basic realm=\"localhost\""));
+    server.enqueue(new MockResponse().setBody("A"));
+    server.enqueue(new MockResponse().setBody("B"));
+    server.start();
+    
+    AetherClientConfig config = new AetherClientConfig();
+    AetherClientAuthentication auth = new AetherClientAuthentication("username", "password");
+    AetherClientProxy proxy = new AetherClientProxy();
+    proxy.setAuthentication(auth);
+    proxy.setHost(server.getHostName());
+    proxy.setPort(server.getPort());
+    config.setUserAgent("Test");
+    config.setAuthentication(auth);
+    config.setProxy(proxy);
+    config.setSslSocketFactory(sslContext.getSocketFactory());
+    
+    OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
+    
+    Field field = aetherClient.getClass().getDeclaredField("httpClient");
+    field.setAccessible(true);
+    OkHttpClient client = (OkHttpClient) field.get(aetherClient);
+    client.setHostnameVerifier(new RecordingHostnameVerifier());
+    
+    Response res = aetherClient.get("https://android.com/foo");
+    assertEquals("A", readAscii(res.getInputStream(), Integer.MAX_VALUE));
+
+    res = aetherClient.get("https://android.com/foo2");
+    assertEquals("B", readAscii(res.getInputStream(), Integer.MAX_VALUE));
+    
+    RecordedRequest connect1 = server.takeRequest();
+    assertEquals("CONNECT android.com:443 HTTP/1.1", connect1.getRequestLine());
+    assertContainsNoneMatching(connect1.getHeaders(), "Proxy-Authorization");
+    assertContainsNoneMatching(connect1.getHeaders(), "Authorization");
+    
+    RecordedRequest connect2 = server.takeRequest();
+    assertEquals("CONNECT android.com:443 HTTP/1.1", connect2.getRequestLine());
+    assertContains(connect2.getHeaders(), "Proxy-Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
+    assertContainsNoneMatching(connect2.getHeaders(), "Authorization");
+
+    RecordedRequest get = server.takeRequest();
+    assertEquals("GET /foo HTTP/1.1", get.getRequestLine());
+    assertContainsNoneMatching(get.getHeaders(), "Proxy-Authorization");
+    assertContainsNoneMatching(get.getHeaders(), "Authorization");
+    
+    RecordedRequest get2 = server.takeRequest();
+    assertEquals("GET /foo HTTP/1.1", get2.getRequestLine());
+    assertContainsNoneMatching(get2.getHeaders(), "Proxy-Authorization");
+    assertContains(get2.getHeaders(), "Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
+    
+    RecordedRequest get3 = server.takeRequest();
+    assertEquals("GET /foo2 HTTP/1.1", get3.getRequestLine());
+    assertContainsNoneMatching(get3.getHeaders(), "Proxy-Authorization");
+    assertContains(get3.getHeaders(), "Authorization", "Basic " + RecordingAuthenticator.BASE_64_CREDENTIALS);
   }
 
   //

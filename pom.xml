@@ -33,7 +33,7 @@
     <wagonVersion>2.4</wagonVersion>
     <slf4jVersion>1.7.4</slf4jVersion>
     <junitVersion>4.12</junitVersion>
-    <provisioWebserverVersion>0.0.5</provisioWebserverVersion>
+    <provisioWebserverVersion>0.0.6</provisioWebserverVersion>
   </properties>
 
   <scm>

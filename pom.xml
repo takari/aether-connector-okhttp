@@ -37,9 +37,9 @@
   </properties>
 
   <scm>
-    <connection>scm:git:git@github.com/tesla/aether-connector-okhttp.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/tesla/aether-connector-okhttp.git</developerConnection>
-    <url>http://github.com/tesla/provisio</url>
+    <connection>scm:git:git@github.com/takari/aether-connector-okhttp.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/takari/aether-connector-okhttp.git</developerConnection>
+    <url>https://github.com/takari/aether-connector-okhttp</url>
     <tag>HEAD</tag>
   </scm>
 

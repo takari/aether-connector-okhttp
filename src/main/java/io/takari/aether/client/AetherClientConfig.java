@@ -9,6 +9,7 @@ package io.takari.aether.client;
 
 import java.util.Map;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSocketFactory;
 
 public class AetherClientConfig {
@@ -19,7 +20,6 @@ public class AetherClientConfig {
   private AetherClientProxy proxy;
   private AetherClientAuthentication authentication;
   private Map<String,String> headers;
-  private SSLSocketFactory sslSocketFactory;
   
   public String getUserAgent() {
     return userAgent;
@@ -69,6 +69,13 @@ public class AetherClientConfig {
     this.headers = headers;
   }
 
+  //
+  // for test purposes
+  //
+
+  private SSLSocketFactory sslSocketFactory;
+
+  private HostnameVerifier hostnameVerifier;
   
   public SSLSocketFactory getSslSocketFactory() {
     return sslSocketFactory;
@@ -76,5 +83,13 @@ public class AetherClientConfig {
 
   public void setSslSocketFactory(SSLSocketFactory sslSocketFactory) {
     this.sslSocketFactory = sslSocketFactory;
+  }
+
+  public HostnameVerifier getHostnameVerifier() {
+    return hostnameVerifier;
+  }
+
+  public void setHostnameVerifier(HostnameVerifier hostnameVerifier) {
+    this.hostnameVerifier = hostnameVerifier;
   }
 }

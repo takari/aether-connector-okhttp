@@ -13,9 +13,7 @@ import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.net.Authenticator;
-import java.net.HttpURLConnection;
 import java.net.PasswordAuthentication;
-import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -50,20 +48,18 @@ import org.slf4j.impl.SimpleLoggerFactory;
 import com.google.common.base.Charsets;
 import com.google.common.io.Files;
 import com.google.inject.Binder;
-import com.squareup.okhttp.Headers;
-import com.squareup.okhttp.OkHttpClient;
-import com.squareup.okhttp.OkUrlFactory;
-import com.squareup.okhttp.internal.SslContextBuilder;
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
-import com.squareup.okhttp.mockwebserver.SocketPolicy;
 
 import io.takari.aether.client.AetherClientAuthentication;
 import io.takari.aether.client.AetherClientConfig;
 import io.takari.aether.client.AetherClientProxy;
 import io.takari.aether.client.Response;
 import io.takari.aether.okhttp.OkHttpAetherClient;
+import okhttp3.Headers;
+import okhttp3.internal.SslContextBuilder;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import okhttp3.mockwebserver.SocketPolicy;
 
 //
 // 6 cases: 
@@ -333,22 +329,6 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
   //
 
-  private final OkUrlFactory client = new OkUrlFactory(new OkHttpClient());
-  private HttpURLConnection connection;
-
-  /**
-   * Reads at most {@code limit} characters from {@code in} and asserts that
-   * content equals {@code expected}.
-   */
-  private void assertContent(String expected, HttpURLConnection connection, int limit) throws IOException {
-    connection.connect();
-    assertEquals(expected, readAscii(connection.getInputStream(), limit));
-  }
-
-  private void assertContent(String expected, HttpURLConnection connection) throws IOException {
-    assertContent(expected, connection, Integer.MAX_VALUE);
-  }
-
   /**
    * Reads {@code count} characters from the stream. If the stream is
    * exhausted before {@code count} characters can be read, the remaining
@@ -368,7 +348,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   }
 
   //
-  // Converation for proxy auth
+  // Conversation for proxy auth
   //
   // --> GET http://server.com/foo HTTP/1.1
   //
@@ -385,12 +365,20 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
     server.enqueue(new MockResponse().setBody("A"));
     server.start();
-    client.client().setProxy(server.toProxyAddress());
-    
-    URL url = new URL("http://server.com/foo");
-    connection = client.open(url);
-    assertContent("A", connection);
-    assertEquals(200, connection.getResponseCode());
+
+    AetherClientConfig config = new AetherClientConfig();
+    AetherClientAuthentication auth = new AetherClientAuthentication("username", "password");
+    AetherClientProxy proxy = new AetherClientProxy();
+    proxy.setAuthentication(auth);
+    proxy.setHost(server.getHostName());
+    proxy.setPort(server.getPort());
+    config.setUserAgent("Test");
+    config.setProxy(proxy);
+
+    OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
+    Response res = aetherClient.get("http://server.com/foo");
+    assertEquals(200, res.getStatusCode());
+    assertEquals("A", readAscii(res.getInputStream(), Integer.MAX_VALUE));
     
     RecordedRequest connect1 = server.takeRequest();
     assertEquals("GET http://server.com/foo HTTP/1.1", connect1.getRequestLine());
@@ -402,7 +390,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   }
   
   //
-  // Converation for proxy auth over SSL
+  // Conversation for proxy auth over SSL
   //
   public void testProxyAuthenticateOnConnectOverSSL() throws Exception {
     Authenticator.setDefault(new RecordingAuthenticator());
@@ -411,13 +399,23 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.UPGRADE_TO_SSL_AT_END).clearHeaders());
     server.enqueue(new MockResponse().setBody("A"));
     server.start();
-    client.client().setProxy(server.toProxyAddress());
 
-    URL url = new URL("https://android.com/foo");
-    client.client().setSslSocketFactory(sslContext.getSocketFactory());
-    client.client().setHostnameVerifier(new RecordingHostnameVerifier());
-    connection = client.open(url);
-    assertContent("A", connection);
+    AetherClientConfig config = new AetherClientConfig();
+    AetherClientAuthentication auth = new AetherClientAuthentication("username", "password");
+    AetherClientProxy proxy = new AetherClientProxy(); 
+    proxy.setAuthentication(auth);
+    proxy.setHost(server.getHostName());
+    proxy.setPort(server.getPort());
+    config.setUserAgent("Test");
+    config.setAuthentication(auth);
+    config.setProxy(proxy);
+    config.setSslSocketFactory(sslContext.getSocketFactory());
+    config.setHostnameVerifier(hostnameVerifier);
+
+    OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
+    Response res = aetherClient.get("https://android.com/foo");
+    assertEquals(200, res.getStatusCode());
+    assertEquals("A", readAscii(res.getInputStream(), Integer.MAX_VALUE));
 
     RecordedRequest connect1 = server.takeRequest();
     assertEquals("CONNECT android.com:443 HTTP/1.1", connect1.getRequestLine());
@@ -498,14 +496,13 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     config.setAuthentication(auth);
     config.setProxy(proxy);
     config.setSslSocketFactory(sslContext.getSocketFactory());
+    config.setHostnameVerifier(hostnameVerifier);
     
     OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
     
     Field field = aetherClient.getClass().getDeclaredField("httpClient");
     field.setAccessible(true);
-    OkHttpClient client = (OkHttpClient) field.get(aetherClient);
-    client.setHostnameVerifier(new RecordingHostnameVerifier());
-    
+
     Response res = aetherClient.get("https://android.com/foo");
     assertEquals("A", readAscii(res.getInputStream(), Integer.MAX_VALUE));
 

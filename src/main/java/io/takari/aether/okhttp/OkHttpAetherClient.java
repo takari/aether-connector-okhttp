@@ -6,13 +6,6 @@
  */
 package io.takari.aether.okhttp;
 
-import io.takari.aether.client.AetherClient;
-import io.takari.aether.client.AetherClientAuthentication;
-import io.takari.aether.client.AetherClientConfig;
-import io.takari.aether.client.AetherClientProxy;
-import io.takari.aether.client.Response;
-import io.takari.aether.client.RetryableSource;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -25,23 +18,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.SSLSocketFactory;
-
+import io.takari.aether.client.AetherClient;
+import io.takari.aether.client.AetherClientAuthentication;
+import io.takari.aether.client.AetherClientConfig;
+import io.takari.aether.client.AetherClientProxy;
+import io.takari.aether.client.Response;
+import io.takari.aether.client.RetryableSource;
+import okhttp3.Authenticator;
+import okhttp3.Credentials;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Route;
+import okhttp3.internal.tls.OkHostnameVerifier;
 import okio.BufferedSink;
-
-import com.squareup.okhttp.Authenticator;
-import com.squareup.okhttp.Credentials;
-import com.squareup.okhttp.MediaType;
-import com.squareup.okhttp.OkHttpClient;
-import com.squareup.okhttp.Request;
-import com.squareup.okhttp.RequestBody;
-import com.squareup.okhttp.internal.tls.OkHostnameVerifier;
 
 public class OkHttpAetherClient implements AetherClient {
 
-  private final Authenticator PROXY_AUTH = new Authenticator() {
+  private final Authenticator PROXY_AUTH =  new Authenticator() {
+
     @Override
-    public Request authenticateProxy(Proxy proxy, com.squareup.okhttp.Response response)
+    public Request authenticate(Route route, okhttp3.Response response) throws IOException {
+      if (response.code() == HttpURLConnection.HTTP_PROXY_AUTH) {
+        return authenticateProxy(route.proxy(), response);
+      }
+      return null;
+    }
+
+    private Request authenticateProxy(Proxy proxy, okhttp3.Response response)
         throws IOException {
         Request req = response.request();
         if(req.header("Proxy-Authorization") == null && config.getProxy() != null && 
@@ -58,17 +63,11 @@ public class OkHttpAetherClient implements AetherClient {
         }
         return null;
     }
-
-    @Override
-    public Request authenticate(Proxy proxy, com.squareup.okhttp.Response response)
-        throws IOException {
-      return null;
-    }
   };
 
-  private Map<String, String> headers;
-  private AetherClientConfig config;
-  private OkHttpClient httpClient;
+  private final Map<String, String> headers;
+  private final AetherClientConfig config;
+  private final OkHttpClient httpClient;
 
   public OkHttpAetherClient(AetherClientConfig config) {
     this.config = config;
@@ -87,14 +86,21 @@ public class OkHttpAetherClient implements AetherClient {
       headers.put("User-Agent", config.getUserAgent());
     }
 
-    OkHttpClient httpClient = new OkHttpClient();
-    httpClient.setProxy(getProxy(config.getProxy()));
-    httpClient.setHostnameVerifier(OkHostnameVerifier.INSTANCE);
-    httpClient.setAuthenticator(PROXY_AUTH); // see #authenticate below
-    httpClient.setConnectTimeout(config.getConnectionTimeout(), TimeUnit.MILLISECONDS);
-    httpClient.setReadTimeout(config.getRequestTimeout(), TimeUnit.MILLISECONDS);
-    httpClient.setSslSocketFactory(config.getSslSocketFactory());
-    this.httpClient = httpClient;
+    OkHttpClient.Builder builder = new OkHttpClient.Builder() //
+        .proxy(getProxy(config.getProxy())) //
+        .hostnameVerifier(OkHostnameVerifier.INSTANCE) //
+        // TODO looks odd, why do I need to use the same Authenticator twice?
+        .authenticator(PROXY_AUTH) // see #authenticate below
+        .proxyAuthenticator(PROXY_AUTH) //
+        .connectTimeout(config.getConnectionTimeout(), TimeUnit.MILLISECONDS) //
+        .readTimeout(config.getRequestTimeout(), TimeUnit.MILLISECONDS);
+    if (config.getSslSocketFactory() != null) {
+      builder.sslSocketFactory(config.getSslSocketFactory());
+    }
+    if (config.getHostnameVerifier() != null) {
+      builder.hostnameVerifier(config.getHostnameVerifier());
+    }
+    this.httpClient = builder.build();
   }
 
   @Override
@@ -131,7 +137,7 @@ public class OkHttpAetherClient implements AetherClient {
     do {
       // disable response caching
       // connection.addRequestProperty("Cache-Control", "no-cache") may work too
-      OkHttpClient httpClient = this.httpClient.clone().setCache(null);
+      OkHttpClient httpClient = this.httpClient.newBuilder().cache(null).build();
 
       final MediaType mediaType = MediaType.parse("application/octet-stream");
       final RequestBody body = new RequestBody() {
@@ -164,7 +170,7 @@ public class OkHttpAetherClient implements AetherClient {
   }
 
   private Response execute(OkHttpClient httpClient, Request request) throws IOException {
-    com.squareup.okhttp.Response response = httpClient.newCall(request).execute();
+    okhttp3.Response response = httpClient.newCall(request).execute();
     switch (response.code()) {
       case HttpURLConnection.HTTP_UNAUTHORIZED:
         if (config.getAuthentication() != null && !headers.containsKey("Authorization")) {
@@ -178,11 +184,6 @@ public class OkHttpAetherClient implements AetherClient {
 
   private String toHeaderValue(AetherClientAuthentication auth) {
     return Credentials.basic(auth.getUsername(), auth.getPassword());
-  }
-
-  @Override
-  public void setSSLSocketFactory(SSLSocketFactory sslSocketFactory) {
-    httpClient.setSslSocketFactory(sslSocketFactory);
   }
 
   private java.net.Proxy getProxy(AetherClientProxy proxy) {
@@ -218,9 +219,9 @@ public class OkHttpAetherClient implements AetherClient {
 
   class ResponseAdapter implements Response {
 
-    com.squareup.okhttp.Response conn;
+    okhttp3.Response conn;
 
-    ResponseAdapter(com.squareup.okhttp.Response conn) {
+    ResponseAdapter(okhttp3.Response conn) {
       this.conn = conn;
     }
 

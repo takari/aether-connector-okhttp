@@ -5,7 +5,6 @@ import java.io.UnsupportedEncodingException;
 import java.net.Authenticator;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -34,7 +33,8 @@ import org.slf4j.ILoggerFactory;
 import org.slf4j.impl.SimpleLoggerFactory;
 
 import com.google.inject.Binder;
-import com.squareup.okhttp.internal.SslContextBuilder;
+
+import okhttp3.internal.SslContextBuilder;
 
 public abstract class AetherBaseTestCase extends InjectedTestCase {
 
@@ -49,9 +49,9 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
   protected static final SSLContext sslContext;
   static {
     try {
-      hostname = InetAddress.getByName(null).getHostName();
-      sslContext = new SslContextBuilder(hostname).build();
-    } catch (UnknownHostException | GeneralSecurityException e) {
+      sslContext = SslContextBuilder.localhost();
+      hostname = InetAddress.getByName("localhost").getHostName();
+    } catch (UnknownHostException e) {
       throw new RuntimeException(e);
     }
   }

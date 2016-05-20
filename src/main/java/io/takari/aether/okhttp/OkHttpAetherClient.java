@@ -175,6 +175,7 @@ public class OkHttpAetherClient implements AetherClient {
       case HttpURLConnection.HTTP_UNAUTHORIZED:
         if (config.getAuthentication() != null && !headers.containsKey("Authorization")) {
           headers.put("Authorization", toHeaderValue(config.getAuthentication()));
+          response.body().close(); // help connection pool reclaim the connection
           return null; // retry
         }
         break;

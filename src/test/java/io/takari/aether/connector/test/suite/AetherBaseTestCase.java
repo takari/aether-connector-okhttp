@@ -34,7 +34,7 @@ import org.slf4j.impl.SimpleLoggerFactory;
 
 import com.google.inject.Binder;
 
-import okhttp3.internal.SslContextBuilder;
+import okhttp3.internal.tls.SslClient;
 
 public abstract class AetherBaseTestCase extends InjectedTestCase {
 
@@ -46,10 +46,9 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
 
   // ssl-enabled tests require server and client agree on server hostname
   protected static final String hostname;
-  protected static final SSLContext sslContext;
+  protected static final SslClient sslClient = SslClient.localhost();
   static {
     try {
-      sslContext = SslContextBuilder.localhost();
       hostname = InetAddress.getByName("localhost").getHostName();
     } catch (UnknownHostException e) {
       throw new RuntimeException(e);
@@ -185,7 +184,7 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
   public void configure(Binder binder) {
     binder.bind(FileProcessor.class).to(TestFileProcessor.class);
     binder.bind(ILoggerFactory.class).to(SimpleLoggerFactory.class);
-    binder.bind(SSLSocketFactory.class).toInstance(sslContext.getSocketFactory());
+    binder.bind(SSLSocketFactory.class).toInstance(sslClient.socketFactory);
   }
 
   protected static class RecordingHostnameVerifier implements HostnameVerifier {

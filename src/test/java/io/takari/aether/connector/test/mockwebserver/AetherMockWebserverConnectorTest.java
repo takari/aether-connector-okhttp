@@ -55,7 +55,7 @@ import io.takari.aether.client.AetherClientProxy;
 import io.takari.aether.client.Response;
 import io.takari.aether.okhttp.OkHttpAetherClient;
 import okhttp3.Headers;
-import okhttp3.internal.SslContextBuilder;
+import okhttp3.internal.tls.SslClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -97,7 +97,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   private static final String PROXY_PASSWORD = "ppassword";
 
   private static final RecordingHostnameVerifier hostnameVerifier = new RecordingHostnameVerifier();
-  private static final SSLContext sslContext = SslContextBuilder.localhost();
+  private static final SslClient sslClient = SslClient.localhost();
 
   private MockWebServer server = new MockWebServer();
 
@@ -300,7 +300,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
   private void enableSslRequests() {
     enableSsl = true;
-    server.useHttps(sslContext.getSocketFactory(), enableProxy);
+    server.useHttps(sslClient.socketFactory, enableProxy);
   }
 
   private Artifact artifact(String content) throws IOException {
@@ -394,7 +394,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   //
   public void testProxyAuthenticateOnConnectOverSSL() throws Exception {
     Authenticator.setDefault(new RecordingAuthenticator());
-    server.useHttps(sslContext.getSocketFactory(), true);
+    server.useHttps(sslClient.socketFactory, true);
     server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.UPGRADE_TO_SSL_AT_END).clearHeaders());
     server.enqueue(new MockResponse().setBody("A"));
@@ -409,7 +409,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     config.setUserAgent("Test");
     config.setAuthentication(auth);
     config.setProxy(proxy);
-    config.setSslSocketFactory(sslContext.getSocketFactory());
+    config.setSslSocketFactory(sslClient.socketFactory);
     config.setHostnameVerifier(hostnameVerifier);
 
     OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
@@ -478,7 +478,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   }
   
   public void testAetherClientSSLProxyAuthHeaders() throws Exception {
-    server.useHttps(sslContext.getSocketFactory(), true);
+    server.useHttps(sslClient.socketFactory, true);
     server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.UPGRADE_TO_SSL_AT_END).clearHeaders());
     server.enqueue(new MockResponse().setResponseCode(401).addHeader("WWW-Authenticate: Basic realm=\"localhost\""));
@@ -495,7 +495,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     config.setUserAgent("Test");
     config.setAuthentication(auth);
     config.setProxy(proxy);
-    config.setSslSocketFactory(sslContext.getSocketFactory());
+    config.setSslSocketFactory(sslClient.socketFactory);
     config.setHostnameVerifier(hostnameVerifier);
     
     OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
@@ -613,7 +613,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   public void configure(Binder binder) {
     binder.bind(FileProcessor.class).to(TestFileProcessor.class);
     binder.bind(ILoggerFactory.class).to(SimpleLoggerFactory.class);
-    binder.bind(SSLSocketFactory.class).toInstance(sslContext.getSocketFactory());
+    binder.bind(SSLSocketFactory.class).toInstance(sslClient.socketFactory);
   }
 
 }

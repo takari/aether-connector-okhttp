@@ -78,7 +78,7 @@ public abstract class AetherTestCase extends AetherBaseTestCase {
 
   protected void enableSsl() throws Exception {
     enableSsl = true;
-    server.enableSsl(sslContext);
+    server.enableSsl(sslClient.sslContext);
   }
 
   protected void enableConnectingWithBasicAuth() {

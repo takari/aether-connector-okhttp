@@ -34,6 +34,9 @@ import org.eclipse.sisu.Nullable;
 @Named("okhttp")
 @Singleton
 public final class AetherRepositoryConnectorFactory implements RepositoryConnectorFactory, Service {
+  
+  // see org.apache.maven.artifact.repository.layout.DefaultRepositoryLayout
+  private static final String LAYOUT_DEFAULT = "default";
 
   private FileProcessor fileProcessor;
   private final SSLSocketFactory sslSocketFactory;
@@ -73,10 +76,13 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
   }
 
   public float getPriority() {
-    return Float.MAX_VALUE;
+    return 100; // let other factories take over, if they want to
   }
 
   public RepositoryConnector newInstance(RepositorySystemSession repositorySystemSession, RemoteRepository remoteRepository) throws NoRepositoryConnectorException {
+    if (!LAYOUT_DEFAULT.equals(remoteRepository.getContentType())) {
+      throw new NoRepositoryConnectorException(remoteRepository);
+    }
     ConnectorKey key = new ConnectorKey(remoteRepository);
     RepositoryConnector connector = (RepositoryConnector) repositorySystemSession.getData().get(key);
     if (connector == null) {

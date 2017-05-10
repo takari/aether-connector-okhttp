@@ -236,6 +236,11 @@
           <includes>
             <include>**/OkHttpAetherTest.java</include>
           </includes>
+          <!--
+            | GetDownloadWhoseSizeExceedsMaxHeapSizeTest explicitly goes beyond -Xmx limits
+            | so we set -Xmx low enough to prevent the test VM from killing host OS (or getting killed by it)
+           -->
+          <argLine>-Xmx256m</argLine>
         </configuration>
       </plugin>
     </plugins>

@@ -94,8 +94,8 @@ public class OkHttpAetherClient implements AetherClient {
         .proxyAuthenticator(PROXY_AUTH) //
         .connectTimeout(config.getConnectionTimeout(), TimeUnit.MILLISECONDS) //
         .readTimeout(config.getRequestTimeout(), TimeUnit.MILLISECONDS);
-    if (config.getSslSocketFactory() != null) {
-      builder.sslSocketFactory(config.getSslSocketFactory());
+    if (config.getSslSocketFactory() != null && config.getTrustManager() != null) {
+      builder.sslSocketFactory(config.getSslSocketFactory(), config.getTrustManager());
     }
     if (config.getHostnameVerifier() != null) {
       builder.hostnameVerifier(config.getHostnameVerifier());

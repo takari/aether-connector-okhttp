@@ -53,6 +53,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509TrustManager;
 
 import org.codehaus.plexus.configuration.PlexusConfiguration;
 import org.eclipse.aether.ConfigurationProperties;
@@ -163,10 +164,11 @@ class AetherRepositoryConnector implements RepositoryConnector {
   }
 
   public AetherRepositoryConnector(RemoteRepository repository, RepositorySystemSession session, FileProcessor fileProcessor) throws NoRepositoryConnectorException {
-    this(repository, session, fileProcessor, null);
+    this(repository, session, fileProcessor, null, null);
   }
 
-  public AetherRepositoryConnector(RemoteRepository repository, RepositorySystemSession session, FileProcessor fileProcessor, SSLSocketFactory sslSocketFactory) throws NoRepositoryConnectorException {
+  public AetherRepositoryConnector(RemoteRepository repository, RepositorySystemSession session, FileProcessor fileProcessor, SSLSocketFactory sslSocketFactory,
+		  X509TrustManager trustManager) throws NoRepositoryConnectorException {
     //
     // Right now this only support a Maven layout which is what we mean by type
     //
@@ -188,11 +190,11 @@ class AetherRepositoryConnector implements RepositoryConnector {
       throw new NoRepositoryConnectorException(repository, e);
     }
 
-    this.aetherClient = newAetherClient(repository, session, sslSocketFactory);
+    this.aetherClient = newAetherClient(repository, session, sslSocketFactory, trustManager);
   }
 
   private static OkHttpAetherClient newAetherClient(RemoteRepository repository, RepositorySystemSession session,
-      SSLSocketFactory sslSocketFactory) {
+      SSLSocketFactory sslSocketFactory, X509TrustManager trustManager) {
     AetherClientConfig config = new AetherClientConfig();
 
     Map<String, String> commonHeaders = new HashMap<>();
@@ -272,6 +274,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
     config.setConnectionTimeout(connectTimeout);
     config.setRequestTimeout(readTimeout);
     config.setSslSocketFactory(sslSocketFactory);
+    config.setTrustManager(trustManager);
 
     return new OkHttpAetherClient(config);
   }

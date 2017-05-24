@@ -410,6 +410,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     config.setAuthentication(auth);
     config.setProxy(proxy);
     config.setSslSocketFactory(sslClient.socketFactory);
+    config.setTrustManager(sslClient.trustManager);
     config.setHostnameVerifier(hostnameVerifier);
 
     OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
@@ -496,6 +497,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     config.setAuthentication(auth);
     config.setProxy(proxy);
     config.setSslSocketFactory(sslClient.socketFactory);
+    config.setTrustManager(sslClient.trustManager);
     config.setHostnameVerifier(hostnameVerifier);
     
     OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);

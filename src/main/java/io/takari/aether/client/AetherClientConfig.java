@@ -11,6 +11,7 @@ import java.util.Map;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509TrustManager;
 
 public class AetherClientConfig {
   
@@ -75,6 +76,8 @@ public class AetherClientConfig {
 
   private SSLSocketFactory sslSocketFactory;
 
+  private X509TrustManager trustManager;
+
   private HostnameVerifier hostnameVerifier;
   
   public SSLSocketFactory getSslSocketFactory() {
@@ -83,6 +86,14 @@ public class AetherClientConfig {
 
   public void setSslSocketFactory(SSLSocketFactory sslSocketFactory) {
     this.sslSocketFactory = sslSocketFactory;
+  }
+
+  public X509TrustManager getTrustManager() {
+    return trustManager;
+  }
+
+  public void setTrustManager(X509TrustManager trustManager) {
+    this.trustManager = trustManager;
   }
 
   public HostnameVerifier getHostnameVerifier() {

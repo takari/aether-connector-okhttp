@@ -89,31 +89,40 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
       this.trustManager = trustManager;
     } else {
       // can not use use jdk-default ssl socket factory like previous because
-      // we can not get trust manager without reflection
+      // we can not get trust manager without reflection. So create new ssl
+      // socket factory using system properties to create fake jdk-default
+      // ssl socket factory.
       try {
         String trustManagerFactoryAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
-        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(trustManagerFactoryAlgorithm);
+        // Clearly specify TrustManagerFactory provider to SunJSSE.
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(trustManagerFactoryAlgorithm, "SunJSSE");
         trustManagerFactory.init((KeyStore) null);
+        if (!(trustManagerFactory.getTrustManagers()[0] instanceof X509TrustManager))
+          throw new UnsupportedOperationException("Only X509TrustManager supported by implementation");
 
-				String keyStoreProviderProp = System.getProperty("javax.net.ssl.keyStoreProvider");
-				String keyStoreProp = System.getProperty("javax.net.ssl.keyStore");
-				String keyStoreTypeProp = System.getProperty("javax.net.ssl.keyStoreType", KeyStore.getDefaultType());
-				String keyStorePasswordProp = System.getProperty("javax.net.ssl.keyStorePassword");
+        String keyStoreProviderProp = System.getProperty("javax.net.ssl.keyStoreProvider");
+        String keyStoreTypeProp = System.getProperty("javax.net.ssl.keyStoreType", KeyStore.getDefaultType());
+        String keyStoreProp = System.getProperty("javax.net.ssl.keyStore");
+        String keyStorePasswordProp = System.getProperty("javax.net.ssl.keyStorePassword");
 
-				// TODO more key store arguments combination check
-				if (caseInsensitiveEequals(keyStoreTypeProp, "PKCS11") && caseInsensitiveEequals(keyStoreProp, "NONE"))
-					throw new IllegalArgumentException(
-					    "Illegal key store arguments combination (keyStoreTypeProp PKCS11): keyStoreProp can not be NONE");
+        // TODO more key store arguments combination check
+        if (caseInsensitiveEequals(keyStoreTypeProp, "PKCS11") && caseInsensitiveEequals(keyStoreProp, "NONE"))
+          throw new IllegalArgumentException(
+              "Illegal key store arguments combination (keyStoreTypeProp PKCS11): keyStoreProp can not be NONE");
 
-				char[] password = isEmpty(keyStorePasswordProp) ? null : keyStorePasswordProp.toCharArray();
+        char[] password = isEmpty(keyStorePasswordProp) ? null : keyStorePasswordProp.toCharArray();
 
-				KeyStore keyStore;
-				if (isEmpty(keyStoreTypeProp))
-					keyStore = null;
-				else {
-					keyStore = isEmpty(keyStoreProviderProp) ? KeyStore.getInstance(keyStoreTypeProp)
-					    : KeyStore.getInstance(keyStoreTypeProp, keyStoreProviderProp);
+        KeyStore keyStore;
+        // If keyStoreTypeProp not specified by system property. leave key
+        // store null.
+        if (isEmpty(keyStoreTypeProp))
+          keyStore = null;
+        else {
+          keyStore = isEmpty(keyStoreProviderProp) ? KeyStore.getInstance(keyStoreTypeProp)
+              : KeyStore.getInstance(keyStoreTypeProp, keyStoreProviderProp);
 
+          // Create FileInputStream from keyStoreProp if specified by system
+          // property and not NONE.
           if (!isEmpty(keyStoreProp) && !caseInsensitiveEequals(keyStoreProp, "NONE")) {
             try (InputStream stream = new FileInputStream(keyStoreProp)) {
               keyStore.load(stream, password);
@@ -125,6 +134,10 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
         String keyManagerFactoryAlgorithm = KeyManagerFactory.getDefaultAlgorithm();
         KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(keyManagerFactoryAlgorithm);
 
+        // When key store is PKCS11. Password is already used by token of key
+        // store. So we should give null here. Otherwise it may throw an
+        // exception.
+        // See sun.security.pkcs11.P11KeyStore.engineGetKey(String, char[])
         keyManagerFactory.init(keyStore, caseInsensitiveEequals(keyStoreTypeProp, "PKCS11") ? null : password);
 
         TrustManager[] trustManagers = trustManagerFactory.getTrustManagers();

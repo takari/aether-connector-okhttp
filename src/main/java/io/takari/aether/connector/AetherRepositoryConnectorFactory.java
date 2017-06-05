@@ -94,8 +94,7 @@ public final class AetherRepositoryConnectorFactory implements RepositoryConnect
       // ssl socket factory.
       try {
         String trustManagerFactoryAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
-        // Clearly specify TrustManagerFactory provider to SunJSSE.
-        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(trustManagerFactoryAlgorithm, "SunJSSE");
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(trustManagerFactoryAlgorithm);
         trustManagerFactory.init((KeyStore) null);
         if (!(trustManagerFactory.getTrustManagers()[0] instanceof X509TrustManager))
           throw new UnsupportedOperationException("Only X509TrustManager supported by implementation");

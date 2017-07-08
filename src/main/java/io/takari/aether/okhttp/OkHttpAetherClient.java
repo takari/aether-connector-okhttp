@@ -13,10 +13,17 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.Proxy.Type;
 import java.net.SocketAddress;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 
 import io.takari.aether.client.AetherClient;
 import io.takari.aether.client.AetherClientAuthentication;
@@ -95,7 +102,12 @@ public class OkHttpAetherClient implements AetherClient {
         .connectTimeout(config.getConnectionTimeout(), TimeUnit.MILLISECONDS) //
         .readTimeout(config.getRequestTimeout(), TimeUnit.MILLISECONDS);
     if (config.getSslSocketFactory() != null) {
-      builder.sslSocketFactory(config.getSslSocketFactory());
+    	X509TrustManager trustManager = getX509TrustManager();
+    	if (trustManager != null) {
+    		builder.sslSocketFactory(config.getSslSocketFactory(), trustManager);
+    	} else {
+    		builder.sslSocketFactory(config.getSslSocketFactory());
+    	}
     }
     if (config.getHostnameVerifier() != null) {
       builder.hostnameVerifier(config.getHostnameVerifier());
@@ -111,6 +123,28 @@ public class OkHttpAetherClient implements AetherClient {
     } while (response == null);
     return response;
   }
+  
+  //
+  // Try and get an X509TrustManager using the JVM default algorithms and types.  If this fails, return null, so we fall back to OkHTTP's reflection solution.
+  //
+	private X509TrustManager getX509TrustManager() {
+		try {
+			TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+			KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+			trustManagerFactory.init(keyStore);
+			
+			for (TrustManager trustManager : trustManagerFactory.getTrustManagers()) {
+				if (trustManager instanceof X509TrustManager) {
+					return (X509TrustManager) trustManager;
+				}
+			}
+			return null;
+		} catch (NoSuchAlgorithmException e) {
+			return null;
+		} catch (KeyStoreException e) {
+			return null;
+		}
+	}
 
   @Override
   public Response get(String uri) throws IOException {

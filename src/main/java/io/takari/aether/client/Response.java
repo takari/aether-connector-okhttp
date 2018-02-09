@@ -7,15 +7,17 @@
  */
 package io.takari.aether.client;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
-public interface Response {  
+public interface Response extends Closeable {
   int getStatusCode() throws IOException;
   String getStatusMessage() throws IOException;
   String getHeader(String name);
   Map<String, List<String>> getHeaders();
   InputStream getInputStream() throws IOException;
+  void close();
 }

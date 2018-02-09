@@ -288,6 +288,13 @@ public class OkHttpAetherClient implements AetherClient {
     public InputStream getInputStream() throws IOException {
       return conn.body().byteStream();
     }
+
+    @Override
+    public void close() {
+      if (conn != null) {
+        conn.close();
+      }
+    }
   }
 
   @Override

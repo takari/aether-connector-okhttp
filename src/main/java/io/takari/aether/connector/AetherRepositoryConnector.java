@@ -7,33 +7,6 @@
  */
 package io.takari.aether.connector;
 
-//TODO remove custom exceptions
-//TODO only allow auth over SSL
-//TODO make it easy to use SSL with Nexus, make Nexus a key issuing authority
-//TODO protocol with repo managers
-//TODO make the layout pluggable
-//TODO Signature validation
-//TODO TEST NTLM
-//TODO Certificate base auth
-
-// Encoding credentials for basic auth
-// http://tools.ietf.org/id/draft-reschke-basicauth-enc-00.html
-
-// Encoding
-// http://www.joelonsoftware.com/articles/Unicode.html
-
-// Resumable downloads
-// http://zoompf.com/2010/03/performance-tip-for-http-downloads
-// http://stackoverflow.com/questions/6237079/resume-http-file-download-in-java
-
-import io.takari.aether.client.AetherClient;
-import io.takari.aether.client.AetherClientAuthentication;
-import io.takari.aether.client.AetherClientConfig;
-import io.takari.aether.client.AetherClientProxy;
-import io.takari.aether.client.Response;
-import io.takari.aether.client.RetryableSource;
-import io.takari.aether.okhttp.OkHttpAetherClient;
-
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -90,6 +63,33 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.io.Closer;
+
+//TODO remove custom exceptions
+//TODO only allow auth over SSL
+//TODO make it easy to use SSL with Nexus, make Nexus a key issuing authority
+//TODO protocol with repo managers
+//TODO make the layout pluggable
+//TODO Signature validation
+//TODO TEST NTLM
+//TODO Certificate base auth
+
+// Encoding credentials for basic auth
+// http://tools.ietf.org/id/draft-reschke-basicauth-enc-00.html
+
+// Encoding
+// http://www.joelonsoftware.com/articles/Unicode.html
+
+// Resumable downloads
+// http://zoompf.com/2010/03/performance-tip-for-http-downloads
+// http://stackoverflow.com/questions/6237079/resume-http-file-download-in-java
+
+import io.takari.aether.client.AetherClient;
+import io.takari.aether.client.AetherClientAuthentication;
+import io.takari.aether.client.AetherClientConfig;
+import io.takari.aether.client.AetherClientProxy;
+import io.takari.aether.client.Response;
+import io.takari.aether.client.RetryableSource;
+import io.takari.aether.okhttp.OkHttpAetherClient;
 
 class AetherRepositoryConnector implements RepositoryConnector {
 
@@ -489,10 +489,9 @@ class AetherRepositoryConnector implements RepositoryConnector {
     }
 
     private boolean resourceExist(String uri) throws IOException {
-      if (aetherClient.head(uri).getStatusCode() == 200) {
-        return true;
+      try(Response head = aetherClient.head(uri)) {
+        return head.getStatusCode() == 200;
       }
-      return false;
     }
 
     //
@@ -585,20 +584,8 @@ class AetherRepositoryConnector implements RepositoryConnector {
 
         //JVZ: this all needs to be moved up to the client
 
-        Response response;
-
-        if (resumeDownloadInProgress) {
-          Map<String, String> requestHeaders = new HashMap<String, String>();
-          requestHeaders.put("Range", "bytes=" + temporaryFileInLocalRepository.length() + "-");
-          requestHeaders.put("Accept-Encoding", "identity");
-          response = aetherClient.get(uri, requestHeaders);
-
-          if (response.getStatusCode() == 416) {
-            response = aetherClient.get(uri);
-          }
-        } else {
-          response = aetherClient.get(uri);
-        }
+        try (Response response = getResponse(uri, resumeDownloadInProgress, temporaryFileInLocalRepository);
+            InputStream is = response.getInputStream()) {
 
         handleResponseCode(uri, response.getStatusCode(), response.getStatusMessage());
         //
@@ -630,28 +617,28 @@ class AetherRepositoryConnector implements RepositoryConnector {
           }
         }
 
-        Closer closer = Closer.create();
         final byte[] buffer = new byte[1024 * 1024];
         int n = 0;
-        try {
-          InputStream is = closer.register(response.getInputStream());
-          OutputStream os = closer.register(new BufferedOutputStream(new FileOutputStream(temporaryFileInLocalRepository, resumeDownloadInProgress)));
-          while (-1 != (n = is.read(buffer))) {
-            os.write(buffer, 0, n);
-            if (emitProgressEvent) {
-              transferProgressed(download, newEvent(transferResource, null, requestType, EventType.PROGRESSED).setTransferredBytes(n).setDataBuffer(buffer, 0, n).build());
+
+          try (OutputStream os = new BufferedOutputStream(new FileOutputStream(temporaryFileInLocalRepository, resumeDownloadInProgress))) {
+            while (-1 != (n = is.read(buffer))) {
+              os.write(buffer, 0, n);
+              if (emitProgressEvent) {
+                transferProgressed(download, newEvent(transferResource, null, requestType, EventType.PROGRESSED).setTransferredBytes(n).setDataBuffer(buffer, 0, n).build());
+              }
+              bytesTransferred = bytesTransferred + n;
             }
-            bytesTransferred = bytesTransferred + n;
+            //
+            // No interruptions in the download so we have transferred all the bytes
+            //
+            downloadSuccessful = true;
+          } catch (IOException e) {
+            throw e;
           }
-          //
-          // No interruptions in the download so we have transferred all the bytes
-          //
-          downloadSuccessful = true;
 
         } catch (IOException e) {
           exception = e;
         } finally {
-          closer.close();
           if (downloadSuccessful) {
             exception = null;
             break;
@@ -667,6 +654,24 @@ class AetherRepositoryConnector implements RepositoryConnector {
       }
 
       return new FileTransfer(temporaryFileInLocalRepository, bytesTransferred);
+    }
+
+    private Response getResponse(String uri, boolean resumeDownloadInProgress, File temporaryFileInLocalRepository)
+            throws IOException {
+      Response response;
+      if (resumeDownloadInProgress) {
+        Map<String, String> requestHeaders = new HashMap<String, String>();
+        requestHeaders.put("Range", "bytes=" + temporaryFileInLocalRepository.length() + "-");
+        requestHeaders.put("Accept-Encoding", "identity");
+        response = aetherClient.get(uri, requestHeaders);
+        if (response.getStatusCode() == 416) {
+          response.close();
+          response = aetherClient.get(uri);
+        }
+      } else {
+        response = aetherClient.get(uri);
+      }
+      return response;
     }
 
     public void flush() {
@@ -712,21 +717,24 @@ class AetherRepositoryConnector implements RepositoryConnector {
         transferStarted(upload, newEvent(transferResource, null, RequestType.PUT, EventType.STARTED).build());
 
         FileSource source = new FileSource(upload, transferResource);
-        Response response = aetherClient.put(uri, source);
+        try (Response response = aetherClient.put(uri, source)) {
 
-        handleResponseCode(uri, response.getStatusCode(), response.getStatusMessage());
+          handleResponseCode(uri, response.getStatusCode(), response.getStatusMessage());
 
-        int statusCode = response.getStatusCode();
-        if (statusCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
-          throw new TransferException(String.format("Upload failed for %s with status code %s", uri, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
-        }
+          int statusCode = response.getStatusCode();
+          if (statusCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
+            throw new TransferException(String.format("Upload failed for %s with status code %s", uri, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
+          }
 
-        transferSucceeded(upload, newEvent(transferResource, null, RequestType.PUT, EventType.SUCCEEDED).setTransferredBytes(source.getBytesTransferred()).build());
+          transferSucceeded(upload, newEvent(transferResource, null, RequestType.PUT, EventType.SUCCEEDED).setTransferredBytes(source.getBytesTransferred()).build());
 
-        //
-        // Send up the checksums
-        //
-        uploadChecksums(file, uri);
+          //
+          // Send up the checksums
+          //
+          uploadChecksums(file, uri);
+          } catch (Exception e) {
+            throw e;
+          }
 
       } catch (Exception e) {
         try {
@@ -776,6 +784,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
       });
 
       int statusCode = response.getStatusCode();
+      response.close();
       if (statusCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
         throw new TransferException(String.format("Upload checksum failed for %s with status code %s", uri + ext, "RESPONSE" == null ? HttpURLConnection.HTTP_INTERNAL_ERROR : statusCode));
       }

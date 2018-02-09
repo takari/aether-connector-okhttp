@@ -7,14 +7,6 @@
  */
 package io.takari.aether.wagon;
 
-import io.takari.aether.client.AetherClient;
-import io.takari.aether.client.AetherClientAuthentication;
-import io.takari.aether.client.AetherClientConfig;
-import io.takari.aether.client.AetherClientProxy;
-import io.takari.aether.client.Response;
-import io.takari.aether.client.RetryableSource;
-import io.takari.aether.okhttp.OkHttpAetherClient;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -42,6 +34,14 @@ import org.apache.maven.wagon.resource.Resource;
 import org.eclipse.aether.ConfigurationProperties;
 
 import com.google.common.io.Closer;
+
+import io.takari.aether.client.AetherClient;
+import io.takari.aether.client.AetherClientAuthentication;
+import io.takari.aether.client.AetherClientConfig;
+import io.takari.aether.client.AetherClientProxy;
+import io.takari.aether.client.Response;
+import io.takari.aether.client.RetryableSource;
+import io.takari.aether.okhttp.OkHttpAetherClient;
 
 @Named("http")
 public class OkHttpWagon extends StreamWagon {
@@ -204,8 +204,7 @@ public class OkHttpWagon extends StreamWagon {
 
     String url = buildUrl(resource.getName());
 
-    try {
-      Response response = client.put(url, source);
+    try(Response response = client.put(url, source)) {
       // TODO do I need to worry about response status?
     } catch (FileNotFoundException e) {
       fireTransferError(resource, e, TransferEvent.REQUEST_PUT);
@@ -277,9 +276,7 @@ public class OkHttpWagon extends StreamWagon {
   public boolean resourceExists(String resourceName) throws TransferFailedException, AuthorizationException {
 
     String url = buildUrl(resourceName);
-    try {
-      Response response = client.head(url);
-
+    try (Response response = client.head(url)) {
       final int statusCode = response.getStatusCode();
       switch (statusCode) {
       case HttpURLConnection.HTTP_OK:

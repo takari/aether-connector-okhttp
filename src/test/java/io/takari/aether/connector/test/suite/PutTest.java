@@ -9,12 +9,16 @@ package io.takari.aether.connector.test.suite;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.metadata.Metadata;
 import org.eclipse.aether.spi.connector.ArtifactUpload;
 import org.eclipse.aether.spi.connector.MetadataUpload;
 import org.eclipse.aether.transfer.ArtifactTransferException;
+import org.eclipse.aether.transfer.TransferCancelledException;
+import org.eclipse.aether.transfer.TransferEvent;
+import org.eclipse.aether.transfer.TransferListener;
 
 public class PutTest extends AetherTestCase {
 
@@ -26,8 +30,42 @@ public class PutTest extends AetherTestCase {
 
     Artifact artifact = artifact("artifact");
     ArtifactUpload up = new ArtifactUpload(artifact, artifact.getFile());
+    final AtomicLong transferredBytes = new AtomicLong();
+    up.setListener(new TransferListener() {
+      @Override
+      public void transferInitiated(final TransferEvent transferEvent) throws TransferCancelledException {
+        transferredBytes.set(0);
+      }
+
+      @Override
+      public void transferStarted(final TransferEvent transferEvent) throws TransferCancelledException {
+        transferredBytes.set(0);
+      }
+
+      @Override
+      public void transferProgressed(final TransferEvent transferEvent) throws TransferCancelledException {
+
+      }
+
+      @Override
+      public void transferCorrupted(final TransferEvent transferEvent) throws TransferCancelledException {
+
+      }
+
+      @Override
+      public void transferSucceeded(final TransferEvent transferEvent) {
+        transferredBytes.addAndGet(transferEvent.getTransferredBytes());
+      }
+
+      @Override
+      public void transferFailed(final TransferEvent transferEvent) {
+
+      }
+    });
     List<ArtifactUpload> uploads = Arrays.asList(up);
     connector().put(uploads, null);
+
+    assertEquals(artifact.getFile().length(), transferredBytes.get());
 
     ArtifactTransferException ex = up.getException();
     assertNull(ex != null ? ex.getMessage() : "", ex);

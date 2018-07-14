@@ -24,7 +24,7 @@
   <description>A repository connector implementation based on Square's OkHttp.</description>
 
   <properties>
-    <takari.javaSourceVersion>1.7</takari.javaSourceVersion>
+    <takari.javaSourceVersion>1.8</takari.javaSourceVersion>
     <aetherVersion>1.0.0.v20140518</aetherVersion>
     <testHarnessVersion>0.5.1</testHarnessVersion>
     <bouncycastle.version>1.47</bouncycastle.version>

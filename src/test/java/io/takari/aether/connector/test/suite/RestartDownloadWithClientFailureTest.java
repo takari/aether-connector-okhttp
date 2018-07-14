@@ -24,9 +24,9 @@ import org.eclipse.aether.transfer.TransferEvent.EventType;
 
 import com.google.common.io.Files;
 
-public class ResumeWithClientFailureTest extends AetherTestCase {
+public class RestartDownloadWithClientFailureTest extends AetherTestCase {
 
-  public void testResumingDownloadsWhereTheClientDiesAndRestarts() throws Exception {
+  public void testWhenTheClientDiesAndRestartsConnectorShouldRedownloadTheEntireArtifact() throws Exception {
 
     addDelivery("gid/aid/version/aid-version-classifier.extension", "01234");
     addDelivery("gid/aid/version/aid-version-classifier.extension.sha1", sha1("0123456789"));
@@ -53,9 +53,8 @@ public class ResumeWithClientFailureTest extends AetherTestCase {
     assertNotNull(String.valueOf(down.getException()), down.getException());
 
     //
-    // Now add the full content of the expected file so on disk we have received half of
-    // the expected content so the client should pick up where it left off and download
-    // the remaining 5 bytes.
+    // Now add the full content of the expected file, so the client should be able to
+    // download the entire artifact from the beginning.
     //
     addDelivery("gid/aid/version/aid-version-classifier.extension", "0123456789");
 
@@ -64,31 +63,33 @@ public class ResumeWithClientFailureTest extends AetherTestCase {
     //
     f = createTempFile("foo-bar-1.0.jar", "");
     a = artifact("bla");
-    down = new ArtifactDownload(a, null, f, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
-    downs = Arrays.asList(down);
     RecordingTransferListener listener = new RecordingTransferListener(session().getTransferListener());
-    session().setTransferListener(listener);
+    down = new ArtifactDownload(a, null, f, RepositoryPolicy.CHECKSUM_POLICY_FAIL);
+    down.setListener(listener);
+    downs = Arrays.asList(down);
     c = connector(true);
     c.get(downs, null);
 
     //
-    // We should have no errors and we should see that only the 5 remaining bytes have been
-    // downloaded by the client.
+    // We should have no errors and we should see that the entire file was redownloaded by the client.
     //
     assertNull(String.valueOf(down.getException()), down.getException());
     LinkedList<TransferEvent> events = new LinkedList<TransferEvent>(listener.getEvents());
-    checkEvents(events, 5);
+    checkEvents(events, 10);
 
   }
 
   private static void checkEvents(Queue<TransferEvent> events, long expectedBytes) {
     TransferEvent currentEvent;
+    boolean foundTransferEvent = false;
     while ((currentEvent = events.poll()) != null) {
       EventType currentType = currentEvent.getType();
       if (TransferEvent.EventType.SUCCEEDED.equals(currentType)) {
+        foundTransferEvent = true;
         assertEquals("Should only have received " + expectedBytes + " bytes", expectedBytes, currentEvent.getTransferredBytes());
       }
     }
+    assertTrue("No transfer event found", foundTransferEvent);
   }
 
   private static final File TMP = new File(System.getProperty("java.io.tmpdir"), "aether-" + UUID.randomUUID().toString().substring(0, 8));

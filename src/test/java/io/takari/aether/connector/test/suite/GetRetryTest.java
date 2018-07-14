@@ -22,6 +22,7 @@ import org.eclipse.aether.repository.RepositoryPolicy;
 import org.eclipse.aether.spi.connector.ArtifactDownload;
 import org.eclipse.aether.spi.connector.RepositoryConnector;
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
+import org.eclipse.aether.transfer.ArtifactTransferException;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.nio.SelectChannelConnector;
@@ -31,7 +32,7 @@ import org.slf4j.impl.SimpleLoggerFactory;
 
 import com.google.inject.Binder;
 
-public class GetResumeTest extends InjectedTestCase {
+public class GetRetryTest extends InjectedTestCase {
 
   @Inject
   private RepositoryConnectorFactory factory;
@@ -44,8 +45,6 @@ public class GetResumeTest extends InjectedTestCase {
   private Server server;
   private Connector connector;
   private FlakyHandler flakyHandler;
-  private int port;
-  private boolean supportRanges;
 
   // NOTE: Length of pattern should not be divisable by 2 to catch data continuation errors during resume
   static final int[] CONTENT_PATTERN = {
@@ -76,7 +75,7 @@ public class GetResumeTest extends InjectedTestCase {
     }
   }
 
-  public void testResumingDownloadsWhereTheServerDropsTheConnectionAndSupportsRanges() throws Exception {
+  public void testDownloadWhenServerCannotSatisfyDownloadWithoutRangesWillResultInException() throws Exception {
     
     artifact = new DefaultArtifact("gid", "aid", "classifier", "extension", "version");
 
@@ -100,22 +99,19 @@ public class GetResumeTest extends InjectedTestCase {
       connector.close();
     }
 
-    assertNull(String.valueOf(download.getException()), download.getException());
-    assertTrue("Missing " + file.getAbsolutePath(), file.isFile());
-    assertEquals("Bad size of " + file.getAbsolutePath(), flakyHandler.totalSize, file.length());
-    assertContentPattern(file);
+    assertEquals("No exception resulted from downloading from bad server", download.getException().getClass(), ArtifactTransferException.class);
   }
  
-  public void testResumingDownloadsWhereTheServerDropsTheConnectionAndDoesNotSupportsRanges() throws Exception {
+  public void testRetryDownloadsWhereTheServerDropsTheConnectionAndDoesNotSupportsRanges() throws Exception {
     
     artifact = new DefaultArtifact("gid", "aid", "classifier", "extension", "version");
 
-    server = new Server();    
+    server = new Server();
     connector = new SelectChannelConnector();
     server.addConnector(connector);
     FlakyServerHandlerWithNoRangeSupport flakyHandler = new FlakyServerHandlerWithNoRangeSupport(2); // do not support ranges
     server.setHandler(flakyHandler);
-    server.start();        
+    server.start();
     
     File file = TestFileUtils.createTempFile("");
     file.delete();

@@ -77,7 +77,7 @@ class FlakyHandler extends AbstractHandler {
         throw new IOException("oups, we're dead");
       }
 
-      out.write(GetResumeTest.CONTENT_PATTERN[i % GetResumeTest.CONTENT_PATTERN.length]);
+      out.write(GetRetryTest.CONTENT_PATTERN[i % GetRetryTest.CONTENT_PATTERN.length]);
     }
 
     out.close();

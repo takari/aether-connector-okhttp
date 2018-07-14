@@ -13,7 +13,9 @@ import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.net.Authenticator;
+import java.net.InetAddress;
 import java.net.PasswordAuthentication;
+import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -21,7 +23,6 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.inject.Inject;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
 import org.eclipse.aether.DefaultRepositorySystemSession;
@@ -55,11 +56,12 @@ import io.takari.aether.client.AetherClientProxy;
 import io.takari.aether.client.Response;
 import io.takari.aether.okhttp.OkHttpAetherClient;
 import okhttp3.Headers;
-import okhttp3.internal.tls.SslClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import okhttp3.mockwebserver.SocketPolicy;
+import okhttp3.tls.HandshakeCertificates;
+import okhttp3.tls.HeldCertificate;
 
 //
 // 6 cases: 
@@ -97,7 +99,24 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   private static final String PROXY_PASSWORD = "ppassword";
 
   private static final RecordingHostnameVerifier hostnameVerifier = new RecordingHostnameVerifier();
-  private static final SslClient sslClient = SslClient.localhost();
+  protected static final String hostname;
+  static {
+    try {
+      hostname = InetAddress.getByName("localhost").getHostName();
+    } catch (UnknownHostException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  protected static final HeldCertificate localhostCertificate = new HeldCertificate.Builder()
+      .addSubjectAlternativeName(hostname)
+      .build();
+  protected static final HandshakeCertificates serverCertificates = new HandshakeCertificates.Builder()
+      .heldCertificate(localhostCertificate)
+      .build();
+  private static final HandshakeCertificates clientCertificates = new HandshakeCertificates.Builder()
+      .addPlatformTrustedCertificates()
+      .addTrustedCertificate(localhostCertificate.certificate())
+      .build();
 
   private MockWebServer server = new MockWebServer();
 
@@ -300,7 +319,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
 
   private void enableSslRequests() {
     enableSsl = true;
-    server.useHttps(sslClient.socketFactory, enableProxy);
+    server.useHttps(serverCertificates.sslSocketFactory(), enableProxy);
   }
 
   private Artifact artifact(String content) throws IOException {
@@ -394,7 +413,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   //
   public void testProxyAuthenticateOnConnectOverSSL() throws Exception {
     Authenticator.setDefault(new RecordingAuthenticator());
-    server.useHttps(sslClient.socketFactory, true);
+    server.useHttps(serverCertificates.sslSocketFactory(), true);
     server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.UPGRADE_TO_SSL_AT_END).clearHeaders());
     server.enqueue(new MockResponse().setBody("A"));
@@ -409,7 +428,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     config.setUserAgent("Test");
     config.setAuthentication(auth);
     config.setProxy(proxy);
-    config.setSslSocketFactory(sslClient.socketFactory);
+    config.setSslSocketFactory(clientCertificates.sslSocketFactory());
     config.setHostnameVerifier(hostnameVerifier);
 
     OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
@@ -478,7 +497,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   }
   
   public void testAetherClientSSLProxyAuthHeaders() throws Exception {
-    server.useHttps(sslClient.socketFactory, true);
+    server.useHttps(serverCertificates.sslSocketFactory(), true);
     server.enqueue(new MockResponse().setResponseCode(407).addHeader("Proxy-Authenticate: Basic realm=\"localhost\""));
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.UPGRADE_TO_SSL_AT_END).clearHeaders());
     server.enqueue(new MockResponse().setResponseCode(401).addHeader("WWW-Authenticate: Basic realm=\"localhost\""));
@@ -495,7 +514,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
     config.setUserAgent("Test");
     config.setAuthentication(auth);
     config.setProxy(proxy);
-    config.setSslSocketFactory(sslClient.socketFactory);
+    config.setSslSocketFactory(clientCertificates.sslSocketFactory());
     config.setHostnameVerifier(hostnameVerifier);
     
     OkHttpAetherClient aetherClient = new OkHttpAetherClient(config);
@@ -613,7 +632,7 @@ public class AetherMockWebserverConnectorTest extends InjectedTestCase {
   public void configure(Binder binder) {
     binder.bind(FileProcessor.class).to(TestFileProcessor.class);
     binder.bind(ILoggerFactory.class).to(SimpleLoggerFactory.class);
-    binder.bind(SSLSocketFactory.class).toInstance(sslClient.socketFactory);
+    binder.bind(SSLSocketFactory.class).toInstance(clientCertificates.sslSocketFactory());
   }
 
 }

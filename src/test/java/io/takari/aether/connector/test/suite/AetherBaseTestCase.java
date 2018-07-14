@@ -12,7 +12,6 @@ import java.util.List;
 
 import javax.inject.Inject;
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -34,7 +33,8 @@ import org.slf4j.impl.SimpleLoggerFactory;
 
 import com.google.inject.Binder;
 
-import okhttp3.internal.tls.SslClient;
+import okhttp3.tls.HandshakeCertificates;
+import okhttp3.tls.HeldCertificate;
 
 public abstract class AetherBaseTestCase extends InjectedTestCase {
 
@@ -46,7 +46,6 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
 
   // ssl-enabled tests require server and client agree on server hostname
   protected static final String hostname;
-  protected static final SslClient sslClient = SslClient.localhost();
   static {
     try {
       hostname = InetAddress.getByName("localhost").getHostName();
@@ -54,6 +53,16 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
       throw new RuntimeException(e);
     }
   }
+  protected static final HeldCertificate localhostCertificate = new HeldCertificate.Builder()
+      .addSubjectAlternativeName(hostname)
+      .build();
+  protected static final HandshakeCertificates serverCertificates = new HandshakeCertificates.Builder()
+      .heldCertificate(localhostCertificate)
+      .build();
+  protected static final HandshakeCertificates clientCertificates = new HandshakeCertificates.Builder()
+      .addPlatformTrustedCertificates()
+      .addTrustedCertificate(localhostCertificate.certificate())
+      .build();
 
   protected static final RecordingHostnameVerifier hostnameVerifier = new RecordingHostnameVerifier();
 
@@ -184,7 +193,7 @@ public abstract class AetherBaseTestCase extends InjectedTestCase {
   public void configure(Binder binder) {
     binder.bind(FileProcessor.class).to(TestFileProcessor.class);
     binder.bind(ILoggerFactory.class).to(SimpleLoggerFactory.class);
-    binder.bind(SSLSocketFactory.class).toInstance(sslClient.socketFactory);
+    binder.bind(SSLSocketFactory.class).toInstance(clientCertificates.sslSocketFactory());
   }
 
   protected static class RecordingHostnameVerifier implements HostnameVerifier {

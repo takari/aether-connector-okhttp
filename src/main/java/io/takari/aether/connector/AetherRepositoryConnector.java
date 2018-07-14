@@ -81,7 +81,6 @@ import com.google.common.io.Closer;
 
 // Resumable downloads
 // http://zoompf.com/2010/03/performance-tip-for-http-downloads
-// http://stackoverflow.com/questions/6237079/resume-http-file-download-in-java
 
 import io.takari.aether.client.AetherClient;
 import io.takari.aether.client.AetherClientAuthentication;
@@ -559,54 +558,20 @@ class AetherRepositoryConnector implements RepositoryConnector {
       long bytesTransferred = 0;
 
       boolean downloadSuccessful = false;
-      boolean resumeDownloadInProgress = false;
       File temporaryFileInLocalRepository = null;
 
       //
       // Need to distinguish between client side failure and server side failure
       //      
       for (int retries = 0; retries < 10; retries++) {
-        File[] files = fileInLocalRepository.getParentFile().listFiles();
-        for (File inProgress : files) {
-          //
-          // ${HOME}/.m2/repository/io/tesla/tesla/4/aether-737f90e4cfa047e3-pom.xml-in-progress
-          //
-          if (inProgress.getName().startsWith("aether") && inProgress.getName().endsWith(fileInLocalRepository.getName() + "-in-progress")) {
-            temporaryFileInLocalRepository = inProgress;
-            resumeDownloadInProgress = true;
-            break;
-          }
-        }
-
-        if (temporaryFileInLocalRepository == null) {
-          temporaryFileInLocalRepository = getTmpFile(fileInLocalRepository.getPath());
-        }
+        temporaryFileInLocalRepository = getTmpFile(fileInLocalRepository.getPath());
 
         //JVZ: this all needs to be moved up to the client
 
-        try (Response response = getResponse(uri, resumeDownloadInProgress, temporaryFileInLocalRepository);
+        try (Response response = getResponse(uri,temporaryFileInLocalRepository);
             InputStream is = response.getInputStream()) {
 
         handleResponseCode(uri, response.getStatusCode(), response.getStatusMessage());
-        //
-        // We need to check to see if the server supports the Range header. We should see a response
-        // that looks like the following:
-        //
-        // 206 Partial Content
-        // Content-Type: video/mp4
-        // Content-Length: 64656927
-        // Accept-Ranges: bytes
-        // Content-Range: bytes 100-64656926/64656927
-        //
-        //
-        // If we are going to resume a download, the server needs to respond with a 206 and say it accepts ranges
-        //                
-        if (resumeDownloadInProgress && response.getHeader("Accept-Ranges") == null && response.getStatusCode() == HttpURLConnection.HTTP_OK) {
-          //
-          // The server does not support ranges so delete the temporary file and start over.
-          //
-          temporaryFileInLocalRepository.delete();
-        }
 
         if (emitProgressEvent) {
           String contentLength = response.getHeader("Content-Length");
@@ -620,7 +585,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
         final byte[] buffer = new byte[1024 * 1024];
         int n = 0;
 
-          try (OutputStream os = new BufferedOutputStream(new FileOutputStream(temporaryFileInLocalRepository, resumeDownloadInProgress))) {
+          try (OutputStream os = new BufferedOutputStream(new FileOutputStream(temporaryFileInLocalRepository))) {
             while (-1 != (n = is.read(buffer))) {
               os.write(buffer, 0, n);
               if (emitProgressEvent) {
@@ -656,22 +621,9 @@ class AetherRepositoryConnector implements RepositoryConnector {
       return new FileTransfer(temporaryFileInLocalRepository, bytesTransferred);
     }
 
-    private Response getResponse(String uri, boolean resumeDownloadInProgress, File temporaryFileInLocalRepository)
+    private Response getResponse(String uri, File temporaryFileInLocalRepository)
             throws IOException {
-      Response response;
-      if (resumeDownloadInProgress) {
-        Map<String, String> requestHeaders = new HashMap<String, String>();
-        requestHeaders.put("Range", "bytes=" + temporaryFileInLocalRepository.length() + "-");
-        requestHeaders.put("Accept-Encoding", "identity");
-        response = aetherClient.get(uri, requestHeaders);
-        if (response.getStatusCode() == 416) {
-          response.close();
-          response = aetherClient.get(uri);
-        }
-      } else {
-        response = aetherClient.get(uri);
-      }
-      return response;
+      return aetherClient.get(uri);
     }
 
     public void flush() {

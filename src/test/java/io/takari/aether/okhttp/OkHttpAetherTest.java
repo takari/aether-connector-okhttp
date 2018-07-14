@@ -10,6 +10,7 @@ package io.takari.aether.okhttp;
 import io.takari.aether.connector.test.mockwebserver.AetherMockWebserverConnectorTest;
 import io.takari.aether.connector.test.suite.AetherConnectorFactoryTest;
 import io.takari.aether.connector.test.suite.AetherConnectorTest;
+import io.takari.aether.connector.test.suite.ConcurrentDownloadTest;
 import io.takari.aether.connector.test.suite.GetAuthSslTest;
 import io.takari.aether.connector.test.suite.GetAuthTest;
 import io.takari.aether.connector.test.suite.GetAuthWithNonAsciiCredentialsTest;
@@ -19,7 +20,7 @@ import io.takari.aether.connector.test.suite.GetProxyAuthTest;
 import io.takari.aether.connector.test.suite.GetProxySslTest;
 import io.takari.aether.connector.test.suite.GetProxyTest;
 import io.takari.aether.connector.test.suite.GetRedirectTest;
-import io.takari.aether.connector.test.suite.GetResumeTest;
+import io.takari.aether.connector.test.suite.GetRetryTest;
 import io.takari.aether.connector.test.suite.GetSslTest;
 import io.takari.aether.connector.test.suite.GetStutteringTest;
 import io.takari.aether.connector.test.suite.GetTest;
@@ -30,7 +31,7 @@ import io.takari.aether.connector.test.suite.PutAuthWithNonAsciiCredentialsTest;
 import io.takari.aether.connector.test.suite.PutProxyTest;
 import io.takari.aether.connector.test.suite.PutSslTest;
 import io.takari.aether.connector.test.suite.PutTest;
-import io.takari.aether.connector.test.suite.ResumeWithClientFailureTest;
+import io.takari.aether.connector.test.suite.RestartDownloadWithClientFailureTest;
 import io.takari.aether.connector.test.suite.TimeoutTest;
 import io.takari.aether.connector.test.suite.WagonTest;
 import junit.framework.TestSuite;
@@ -64,8 +65,8 @@ public class OkHttpAetherTest extends InjectedTestCase {
     suite.addTestSuite(GetProxyAuthTest.class);
     suite.addTestSuite(GetProxyAuthSslTest.class);
     suite.addTestSuite(GetAuthWithNonAsciiCredentialsTest.class);
-    suite.addTestSuite(GetResumeTest.class);
-    suite.addTestSuite(ResumeWithClientFailureTest.class);    
+    suite.addTestSuite(GetRetryTest.class);
+    suite.addTestSuite(RestartDownloadWithClientFailureTest.class);    
     suite.addTestSuite(GetStutteringTest.class);
     //
     // PUT
@@ -97,6 +98,7 @@ public class OkHttpAetherTest extends InjectedTestCase {
 
     // bits and pieces
     suite.addTestSuite(AetherConnectorFactoryTest.class);
+    suite.addTestSuite(ConcurrentDownloadTest.class);
 
     return suite;
   }

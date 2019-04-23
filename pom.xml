@@ -27,10 +27,10 @@
     <takari.javaSourceVersion>1.8</takari.javaSourceVersion>
     <aetherVersion>1.0.0.v20140518</aetherVersion>
     <testHarnessVersion>0.5.1</testHarnessVersion>
-    <bouncycastle.version>1.47</bouncycastle.version>
+    <bouncycastle.version>1.60</bouncycastle.version>
     <npn.version>8.1.2.v20120308</npn.version>
-    <okHttpVersion>3.11.0</okHttpVersion>
-    <okioVersion>1.14.0</okioVersion>
+    <okHttpVersion>3.14.1</okHttpVersion>
+    <okioVersion>1.17.3</okioVersion>
     <wagonVersion>2.4</wagonVersion>
     <slf4jVersion>1.7.4</slf4jVersion>
     <junitVersion>4.12</junitVersion>

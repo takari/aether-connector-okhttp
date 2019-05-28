@@ -16,6 +16,7 @@ import java.net.SocketAddress;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import io.takari.aether.client.AetherClientProxy;
 import io.takari.aether.client.Response;
 import io.takari.aether.client.RetryableSource;
 import okhttp3.Authenticator;
+import okhttp3.ConnectionSpec;
 import okhttp3.Credentials;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -99,6 +101,7 @@ public class OkHttpAetherClient implements AetherClient {
     }
 
     OkHttpClient.Builder builder = new OkHttpClient.Builder() //
+    	.connectionSpecs(Arrays.asList(ConnectionSpec.COMPATIBLE_TLS, ConnectionSpec.CLEARTEXT))//Fixes https://github.com/takari/aether-connector-okhttp/issues/20
         .proxy(getProxy(config.getProxy())) //
         .hostnameVerifier(OkHostnameVerifier.INSTANCE) //
         // TODO looks odd, why do I need to use the same Authenticator twice?

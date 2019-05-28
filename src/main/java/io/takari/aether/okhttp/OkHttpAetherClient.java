@@ -47,6 +47,11 @@ public class OkHttpAetherClient implements AetherClient {
 
     @Override
     public Request authenticate(Route route, okhttp3.Response response) throws IOException {
+      //handle preemptive authentication added in okhttp 3.12.0
+      //see https://github.com/square/okhttp/blob/7f63a35ab1a8344279d2e84e07884a45f45f0690/okhttp/src/main/java/okhttp3/internal/connection/RealConnection.java#L434
+      if("Preemptive Authenticate".equals(response.message())) {
+        return null;
+      }
       if (response.code() == HttpURLConnection.HTTP_PROXY_AUTH) {
         return authenticateProxy(route.proxy(), response);
       }

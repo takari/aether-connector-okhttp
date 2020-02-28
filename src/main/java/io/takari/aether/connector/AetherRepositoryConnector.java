@@ -803,6 +803,7 @@ class AetherRepositoryConnector implements RepositoryConnector {
     // this client implementation is thread-safe
     if (executor instanceof ExecutorService) {
       ((ExecutorService) executor).shutdown();
+      executor = null;
     }
   }
 
